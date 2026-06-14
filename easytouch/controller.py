@@ -21,8 +21,10 @@ import serial  # pyserial
 from . import constants as C
 from .decode import (
     ControllerStatus,
+    HeatStatus,
     Schedule,
     decode_controller_status,
+    decode_heat_status,
     decode_schedule,
     encode_days,
 )
@@ -57,8 +59,25 @@ class EasyTouch:
     # --- lifecycle ---------------------------------------------------------
     def open(self) -> "EasyTouch":
         if self._serial is None:
-            self._serial = serial.Serial(self.port_name, self.baud, timeout=self.read_timeout)
+            self._serial = self._open_port()
         return self
+
+    def _open_port(self) -> serial.Serial:
+        """Open the configured port (local device or network URL).
+
+        A ``port`` containing ``://`` is treated as a pyserial URL, so the bus can
+        be reached over the network with no local socat/PTY bridge. The useful
+        form is ``socket://HOST:PORT`` (raw TCP) — e.g. when an RS-485 adapter on
+        another machine is exported with
+        ``socat TCP-LISTEN:4000,reuseaddr /dev/cu.usbserial-XXXX,raw,b9600``.
+        ``tcp://HOST:PORT`` is accepted as an alias for ``socket://``.
+        """
+        port = self.port_name
+        if "://" in port:
+            if port.startswith("tcp://"):
+                port = "socket://" + port[len("tcp://"):]
+            return serial.serial_for_url(port, baudrate=self.baud, timeout=self.read_timeout)
+        return serial.Serial(port, self.baud, timeout=self.read_timeout)
 
     def close(self) -> None:
         if self._serial is not None:
@@ -187,14 +206,12 @@ class EasyTouch:
             self.send(self.build_get_schedules())
         schedules: dict[int, Schedule] = {}
         deadline = time.monotonic() + timeout
-        for pkt in self.packets():
+        for pkt in self._iter_until(deadline):
             if pkt.cfi == C.Action.SCHEDULE and pkt.src == C.Address.MAIN:
                 s = decode_schedule(pkt)
                 schedules[s.id] = s
                 if len(schedules) >= count:
                     break
-            if time.monotonic() > deadline:
-                break
         return [schedules[k] for k in sorted(schedules)]
 
     def build_set_schedule(

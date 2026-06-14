@@ -84,6 +84,24 @@ class PumpStatus:
     mode: int
 
 
+@dataclass
+class HeatStatus:
+    """Decoded ``Action.HEAT_STATUS`` (CFI 8) — temps and heat set-points.
+
+    Payload layout (validated against live hardware):
+    ``[poolTemp, spaTemp, airTemp, poolSetpoint, spaSetpoint, heatMode, ...]``.
+    """
+
+    pool_temp: int
+    spa_temp: int
+    air_temp: int
+    pool_setpoint: int
+    spa_setpoint: int
+    pool_heat_mode: str
+    spa_heat_mode: str
+    heat_mode_raw: int
+
+
 # --- Schedules --------------------------------------------------------------
 # Day-of-week bitmask, per the nodejs-poolController convention. The raw byte is
 # always exposed alongside the decoded names in case a controller orders the
@@ -225,6 +243,25 @@ def decode_schedule(pkt: Packet) -> Schedule:
     )
 
 
+def decode_heat_status(pkt: Packet) -> HeatStatus:
+    d = pkt.data
+
+    def g(i: int) -> int:
+        return d[i] if i < len(d) else 0
+
+    mode = g(5)
+    return HeatStatus(
+        pool_temp=g(0),
+        spa_temp=g(1),
+        air_temp=g(2),
+        pool_setpoint=g(3),
+        spa_setpoint=g(4),
+        pool_heat_mode=C.HEAT_MODES.get(mode & 0x03, "?"),
+        spa_heat_mode=C.HEAT_MODES.get((mode >> 2) & 0x03, "?"),
+        heat_mode_raw=mode,
+    )
+
+
 def decode(pkt: Packet):
     """Dispatch a packet to the most specific decoder available.
 
@@ -234,6 +271,8 @@ def decode(pkt: Packet):
         return decode_controller_status(pkt)
     if pkt.cfi == C.Action.DATE_TIME and pkt.src == C.Address.MAIN:
         return decode_datetime(pkt)
+    if pkt.cfi == C.Action.HEAT_STATUS and pkt.src == C.Address.MAIN:
+        return decode_heat_status(pkt)
     if pkt.cfi == C.Action.SCHEDULE and pkt.src == C.Address.MAIN:
         return decode_schedule(pkt)
     if pkt.cfi == C.Action.PUMP_STATUS and 0x60 <= pkt.src <= 0x6F:

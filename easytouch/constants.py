@@ -67,7 +67,12 @@ class Action:
     SET_HEAT = 136            # 0x88 set heat set-points / mode
     SET_SCHEDULE = 145        # 0x91 write a schedule
     GET_STATUS = 194
+    GET_HEAT = 200            # 0xc8 request heat/temperature status
     GET_SCHEDULE = 209        # 0xd1 request schedule(s)
+    GET_VERSION = 253         # request software version
+    SW_VERSION = 252          # software version info
+    VALVE_STATUS = 29
+    INTELLICHEM = 18
 
 
 # Controller action names (the meaning of CFI depends on the destination; this

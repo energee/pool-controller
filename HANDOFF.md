@@ -223,3 +223,175 @@ status · `17` schedule · `134` set circuit · `145` set schedule · `209` get 
 - When scripting live checks, run **foreground + `python -u`** (or call
   `sys.stdout.flush()`); piping buffered stdout to a file loses output if the
   process is interrupted.
+
+---
+
+## 10. UPDATE — networked bus + writes + temperature all VERIFIED
+
+Since §6 was written, the write path is **confirmed working against real hardware.**
+
+**Topology now:** the RS-485 adapter is on a **separate machine**. That machine runs:
+```
+socat -d -d TCP-LISTEN:4000,reuseaddr /dev/cu.usbserial-BG01D5NI,raw,echo=0,b9600
+```
+and easytouch connects over TCP from this machine. The adapter host used in
+testing was **`192.168.4.70:4000`**.
+
+**easytouch now speaks TCP directly** (no local socat/PTY needed) — `EasyTouch.open()`
+accepts a pyserial URL:
+```
+python -m easytouch --port socket://192.168.4.70:4000 status
+```
+`socket://HOST:PORT` (raw TCP) or `tcp://HOST:PORT` (alias).
+
+**Verified live:**
+- Reads decode over TCP (e.g. pool 85°F, spa 85°F, air 86°F, Heater).
+- **Writes actuate.** A `Get Heat` (CFI 200) request returned `CFI 8`; a circuit/
+  heat write took effect and was confirmed by read-back.
+- **Temperature change confirmed:** raised pool setpoint 84→85 and restored to 84;
+  spa setpoint and heat mode preserved.
+
+**Heat status (CFI 8) payload layout** (validated; payload index = body index − 6):
+```
+[0]=poolTemp [1]=spaTemp [2]=airTemp [3]=poolSetpoint [4]=spaSetpoint [5]=heatMode ...
+```
+Real captured CFI 8 payload: `54 54 55 54 46 05 00 00 00 64 00 00 00`
+→ poolTemp 84, spaTemp 84, airTemp 85, **poolSP 84, spaSP 70**, heatMode 5 (Heater/Heater).
+
+**Set Heat (CFI 136) payload (VALIDATED):** `[poolSetpoint, spaSetpoint, heatMode, 0]`
+(heatMode: pool=bits0-1, spa=bits2-3; 0 off/1 heater/2 solar pref/3 solar only).
+To change one value, **read current first** and resend the others unchanged.
+
+**Bus is sparse over TCP** (~1 broadcast/several seconds). Don't wait passively for
+`CFI 8`/`CFI 17`; *request* them: send Get-Heat (CFI 200, data `[0]`) or Get-Schedule
+(CFI 209, data `[0]`) and read the reply. Use the controller sub-version `0x27`
+(learned from the bus) on outgoing frames.
+
+**Already committed in the code (this update):** `HeatStatus` decode (CFI 8) +
+dispatch; new action codes (GET_HEAT 200, SW_VERSION 252, VALVE_STATUS 29,
+INTELLICHEM 18); `get_schedules`/`snapshot`/`set_circuit` hang fixes via
+`_iter_until`; the `socket://` transport.
+
+---
+
+## 11. FULL API — build spec for a fresh session  ⬅ next task
+
+Goal: a stdlib HTTP JSON API exposing **all** Pentair data + controls (no new deps,
+LAN, no auth). Build it in a fresh session (cheap context). Run tests after each file.
+
+### 11.1 Architecture (important)
+The bus is half-duplex with **one** connection. Do NOT open the port per request.
+A single background thread owns the connection:
+
+```
+HTTP handlers ──read──> cached PoolState ◄──updates── BusMonitor thread ──> serial/TCP
+            └──enqueue cmd──> command queue ──drained by──┘   (single serial owner)
+```
+
+### 11.2 Remaining code
+
+**a) `controller.py`** — add (the validated logic from §10):
+```python
+def build_get_heat(self):
+    return Packet(self.controller_sub, C.Address.MAIN, self.address, C.Action.GET_HEAT, bytes([0]))
+
+def get_heat(self, timeout=6.0, request=True):
+    if request: self.send(self.build_get_heat())
+    deadline = time.monotonic() + timeout
+    for pkt in self._iter_until(deadline):
+        if pkt.cfi == C.Action.HEAT_STATUS and pkt.src == C.Address.MAIN:
+            return decode_heat_status(pkt)
+    raise TimeoutError("no heat status")
+
+def build_set_heat(self, pool_sp, spa_sp, heat_mode):
+    return Packet(self.controller_sub, C.Address.MAIN, self.address,
+                  C.Action.SET_HEAT, bytes([pool_sp & 0xFF, spa_sp & 0xFF, heat_mode & 0xFF, 0]))
+
+def set_heat(self, pool_setpoint=None, spa_setpoint=None, pool_mode=None, spa_mode=None,
+             confirm=True, timeout=8.0):
+    cur = self.get_heat(timeout=timeout)          # read-modify-write
+    psp = cur.pool_setpoint if pool_setpoint is None else pool_setpoint
+    ssp = cur.spa_setpoint if spa_setpoint is None else spa_setpoint
+    mode = cur.heat_mode_raw
+    if pool_mode is not None: mode = (mode & ~0x03) | (pool_mode & 0x03)
+    if spa_mode  is not None: mode = (mode & ~0x0C) | ((spa_mode & 0x03) << 2)
+    self.send(self.build_set_heat(psp, ssp, mode))
+    if not confirm: return None
+    deadline = time.monotonic() + timeout
+    for raw in self._iter_until(deadline):
+        if raw.cfi == C.Action.HEAT_STATUS and raw.src == C.Address.MAIN:
+            hs = decode_heat_status(raw)
+            if (hs.pool_setpoint, hs.spa_setpoint, hs.heat_mode_raw) == (psp, ssp, mode):
+                return hs
+            self.send(self.build_get_heat())
+    raise TimeoutError("heat set not confirmed")
+```
+Also fix `set_schedule` to loop over `self._iter_until(deadline)` (still uses
+`self.packets()` → latent hang) and `raise TimeoutError` when the loop ends.
+
+NOTE: Packet is a dataclass with keyword fields `(sub, dst, src, cfi, data)` — call
+it with keywords, not positionally as abbreviated above.
+
+**b) `state.py` (new)** — `BusMonitor`:
+- `__init__(port, baud=9600, address=0x20, refresh_interval=15.0)`; holds an
+  `EasyTouch`, a `threading.Lock`, `state={}` (keys: status, heat, datetime,
+  pumps{num}, schedules{id}), `raw={cfi:hex}`, a `queue.Queue` for commands,
+  `connected`, `last_packet_ts`, `error`.
+- `start()`/`stop()` manage a daemon thread running `_run()`.
+- `_run()`: open; loop while not stopped: `chunk=serial.read(256)`;
+  `for pkt in et._feed(chunk): _ingest(pkt)`; drain command queue (`et.send`);
+  every `refresh_interval` enqueue `et.build_get_heat()` + `et.build_get_schedules()`.
+  Wrap read in try/except → set error, attempt reconnect.
+- `_ingest(pkt)`: `obj=decode(pkt)`; under lock store by type
+  (ControllerStatus→status, HeatStatus→heat, DateTime→datetime,
+  PumpStatus→pumps[obj.pump], Schedule→schedules[obj.id]); always
+  `raw[pkt.cfi]=pkt.to_bytes(idle=0).hex()`; set `last_packet_ts`.
+- `get_state()`: snapshot dict (JSON-able) of decoded state + raw + meta.
+- `set_circuit(n,on)` / `set_heat(...)` / `set_schedule(...)`: build via the
+  EasyTouch `build_*` helpers and `queue.put`. `set_heat` reads cached `heat`
+  for read-modify-write.
+- `wait_for(pred, timeout)`: poll `get_state()` until pred true (for confirm).
+
+**c) `api.py` (new)** — stdlib `http.server.ThreadingHTTPServer` + handler holding
+a `BusMonitor`. JSON helper; routes:
+| Method | Path | Action |
+|---|---|---|
+| GET | `/` | endpoint index |
+| GET | `/state` | full `get_state()` |
+| GET | `/status` `/heat` `/pumps` `/schedules` `/raw` | subsets |
+| GET | `/circuit/<name-or-num>/<on\|off>` | convenience set |
+| GET | `/heat/pool/<temp>` `/heat/spa/<temp>` | convenience setpoint |
+| POST | `/circuit` `{circuit,on}` | set circuit |
+| POST | `/heat` `{pool_setpoint,spa_setpoint,pool_mode,spa_mode}` | set heat |
+| POST | `/schedule` `{id,circuit,start,end,days}` | set schedule |
+Control endpoints enqueue then `wait_for` (≈6s) and return the new state, or
+202/"accepted" if unconfirmed. `def serve(port, baud, address, http_host, http_port)`
+creates the monitor, starts it, serves forever.
+
+**d) `cli.py`** — add `serve` (special-case in `main()` so it does NOT open the
+shared per-request `EasyTouch`; it runs the BusMonitor): args `--http-host 0.0.0.0`,
+`--http-port 8080`. Add `heat` (print `get_heat()`) and `set-heat`
+(`--pool --spa --pool-mode --spa-mode`, names or ints).
+
+**e) `__init__.py`** — export `HeatStatus`, `decode_heat_status`, `BusMonitor`, `serve`.
+
+**f) tests** — `test_heat.py`: decode the real CFI8 hex above
+(`a527...` build a frame) → poolSP 84/spaSP 70/Heater; `build_set_heat` round-trips.
+`test_state.py`: feed `REAL_STATUS` (see test_protocol.py) to a `BusMonitor` with a
+stub serial → `get_state()['status']` populated. `test_api.py`: start the server on
+port 0 with a stub monitor; `GET /state` returns JSON 200.
+
+**g) README** — document `serve` + the endpoint table + `socket://` usage.
+
+### 11.3 Verify against the live bus
+```
+python -m easytouch serve --port socket://192.168.4.70:4000 --http-port 8080 &
+curl -s localhost:8080/state | python -m json.tool
+curl -s localhost:8080/heat
+curl -s 'localhost:8080/heat/pool/85'        # then check it changed, set back to 84
+curl -s localhost:8080/circuit/pool/off
+```
+"Everything available": fully decoded = status, date/time, heat, pump, schedule;
+others (chlorinator, valves, intellichem, names, version) are exposed as **raw hex**
+under `/raw` until decoders are added — note this in the README so it's not mistaken
+for full decode.
