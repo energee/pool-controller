@@ -78,23 +78,36 @@ class EasyTouch:
         return self._serial
 
     # --- receive -----------------------------------------------------------
+    def _feed(self, chunk: bytes) -> Iterator[Packet]:
+        """Decode a chunk, learning the controller sub-version as packets arrive."""
+        for pkt in self._reader.feed(chunk):
+            if pkt.src == C.Address.MAIN:
+                self.controller_sub = pkt.sub
+            yield pkt
+
     def packets(self, read_size: int = 256) -> Iterator[Packet]:
         """Yield decoded packets forever, learning the controller sub-version."""
         while True:
-            chunk = self.serial.read(read_size)
-            for pkt in self._reader.feed(chunk):
-                if pkt.src == C.Address.MAIN:
-                    self.controller_sub = pkt.sub
-                yield pkt
+            yield from self._feed(self.serial.read(read_size))
+
+    def _iter_until(self, deadline: float, read_size: int = 256) -> Iterator[Packet]:
+        """Yield packets until ``deadline`` (monotonic seconds).
+
+        The clock is checked every read cycle (~``read_timeout`` seconds) whether
+        or not a complete packet arrived, so a silent or garbled stream still
+        terminates instead of blocking forever — unlike iterating ``packets()``,
+        which only yields (and thus only lets a caller check time) when a full
+        frame is decoded.
+        """
+        while time.monotonic() < deadline:
+            yield from self._feed(self.serial.read(read_size))
 
     def snapshot(self, timeout: float = 10.0) -> ControllerStatus:
         """Wait for the next controller-status broadcast and return it decoded."""
         deadline = time.monotonic() + timeout
-        for pkt in self.packets():
+        for pkt in self._iter_until(deadline):
             if pkt.cfi == C.Action.CONTROLLER_STATUS and pkt.src == C.Address.MAIN:
                 return decode_controller_status(pkt)
-            if time.monotonic() > deadline:
-                break
         raise TimeoutError(f"no controller status within {timeout}s")
 
     # --- transmit ----------------------------------------------------------
@@ -135,7 +148,7 @@ class EasyTouch:
 
         deadline = time.monotonic() + timeout
         attempts = 0
-        for raw in self.packets():
+        for raw in self._iter_until(deadline):
             if raw.cfi == C.Action.CONTROLLER_STATUS and raw.src == C.Address.MAIN:
                 status = decode_controller_status(raw)
                 if (circuit in status.circuits_on) == on:
@@ -144,9 +157,7 @@ class EasyTouch:
                 if attempts > retries:
                     return status
                 self.send(pkt)  # not there yet, nudge again
-            if time.monotonic() > deadline:
-                raise TimeoutError(f"circuit {circuit} did not reach {'on' if on else 'off'}")
-        return None
+        raise TimeoutError(f"circuit {circuit} did not reach {'on' if on else 'off'}")
 
     # --- schedules ---------------------------------------------------------
     def build_get_schedules(self, schedule_id: int = 0) -> Packet:
