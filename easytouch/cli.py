@@ -13,6 +13,7 @@ Subcommands::
     easytouch heat         print heat/temperature status
     easytouch set-heat     set heat set-points and/or modes
     easytouch set-chlor    set IntelliChlor generation output %
+    easytouch set-clock    set the controller clock (default: now)
     easytouch serve        run the HTTP JSON API (owns the bus)
     easytouch raw          dump raw hex frames (debugging)
 
@@ -193,6 +194,17 @@ def cmd_set_heat(et: EasyTouch, args) -> int:
     return 0
 
 
+def cmd_set_clock(et: EasyTouch, args) -> int:
+    import datetime as dt
+    when = dt.datetime.fromisoformat(args.iso) if args.iso else None
+    res = et.set_datetime(when, confirm=not args.no_confirm, timeout=args.timeout)
+    if res is None:
+        print("Set-Clock sent (not confirmed).")
+        return 0
+    print(f"Confirmed controller clock: {res.iso}")
+    return 0
+
+
 def cmd_set_chlor(et: EasyTouch, args) -> int:
     from .intellichlor import build_set_output
     pct = max(0, min(100, args.percent))
@@ -296,6 +308,12 @@ def build_parser() -> argparse.ArgumentParser:
     chl = sub.add_parser("set-chlor", help="set IntelliChlor generation output percent")
     chl.add_argument("--percent", type=int, required=True, help="output percent 0-100")
     chl.set_defaults(func=cmd_set_chlor)
+
+    sk = sub.add_parser("set-clock", help="set the controller clock (default: now)")
+    sk.add_argument("--iso", help="ISO datetime, e.g. 2026-06-14T11:30 (default: now)")
+    sk.add_argument("--timeout", type=float, default=8.0)
+    sk.add_argument("--no-confirm", action="store_true", help="fire and forget")
+    sk.set_defaults(func=cmd_set_clock)
 
     sv = sub.add_parser("serve", help="run the HTTP JSON API (owns the bus)")
     sv.add_argument("--http-host", default="0.0.0.0", help="HTTP bind host (default 0.0.0.0)")

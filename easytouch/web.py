@@ -328,6 +328,7 @@ function pumpsCard(pumps, dt) {
     }).join('');
   }
   if (dt) body += row('Controller clock', esc(dt.iso));
+  body += '<button class="ghost" style="margin-top:10px" onclick="setClock()">Set clock to now</button>';
   return card('Pumps &amp; clock', body);
 }
 
@@ -401,6 +402,12 @@ async function setChlor() {
   hold();
   const v = Number(document.getElementById('chlor_out').value);
   await postJSON('/chlorinator', {output: v});
+  afterChange();
+}
+
+async function setClock() {
+  hold();
+  await postJSON('/datetime', {});
   afterChange();
 }
 

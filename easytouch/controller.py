@@ -21,9 +21,11 @@ import serial  # pyserial
 from . import constants as C
 from .decode import (
     ControllerStatus,
+    DateTime,
     HeatStatus,
     Schedule,
     decode_controller_status,
+    decode_datetime,
     decode_heat_status,
     decode_schedule,
     encode_days,
@@ -355,6 +357,36 @@ class EasyTouch:
                 return s
         raise TimeoutError(f"schedule {schedule_id} was not confirmed")
 
+    # --- clock -------------------------------------------------------------
+    def build_set_datetime(self, hour: int, minute: int, dow: int, day: int,
+                           month: int, year: int, auto_dst: int = 1) -> Packet:
+        """Build a Set-Date/Time (CFI 133) command.
+
+        The payload mirrors the CFI 5 broadcast field order decoded by
+        :func:`~easytouch.decode.decode_datetime`:
+        ``[hour, minute, dow, day, month, year, auto_dst]``. ``dow`` is the Pentair
+        weekday *bit* (Sun=0x01 … Sat=0x40); ``year`` is two digits (year - 2000).
+        """
+        return self._command(C.Action.SET_DATETIME, hour & 0xFF, minute & 0xFF,
+                             dow & 0xFF, day & 0xFF, month & 0xFF, year & 0xFF,
+                             1 if auto_dst else 0)
+
+    def set_datetime(self, when=None, auto_dst: bool = True, confirm: bool = True,
+                     timeout: float = 8.0) -> DateTime | None:
+        """Set the controller clock (defaults to the host's current local time).
+
+        With ``confirm`` set, waits for a Date/Time broadcast reflecting the new
+        date and hour and returns it; otherwise fires once and returns ``None``.
+        """
+        hour, minute, dow, day, month, year, dst = datetime_fields(when, auto_dst)
+        self.send(self.build_set_datetime(hour, minute, dow, day, month, year, dst))
+        if not confirm:
+            return None
+        for dt in self._await_main(C.Action.DATE_TIME, decode_datetime, timeout):
+            if (dt.year, dt.month, dt.day, dt.hour) == (year, month, day, hour):
+                return dt
+        raise TimeoutError("date/time set not confirmed")
+
 
 def _parse_hhmm(text: str) -> tuple[int, int]:
     """Parse a ``HH:MM`` (or ``H:MM``) time string into (hour, minute)."""
@@ -365,6 +397,19 @@ def _parse_hhmm(text: str) -> tuple[int, int]:
     if not (0 <= hour <= 23 and 0 <= minute <= 59):
         raise ValueError(f"time out of range: {text!r}")
     return hour, minute
+
+
+def datetime_fields(when=None, auto_dst: bool = True):
+    """Build the Set-Date/Time field tuple for a datetime (defaults to *now*).
+
+    Returns ``(hour, minute, dow, day, month, year, auto_dst)`` where ``dow`` is
+    the Pentair weekday bit (Sun=0x01 … Sat=0x40) and ``year`` is two digits.
+    """
+    import datetime as _dt
+    when = when or _dt.datetime.now()
+    dow = 1 << (when.isoweekday() % 7)        # isoweekday Mon=1..Sun=7 -> Sun = bit 0
+    return (when.hour, when.minute, dow, when.day, when.month, when.year % 100,
+            1 if auto_dst else 0)
 
 
 def resolve_circuit(name_or_number: str) -> int:

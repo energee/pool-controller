@@ -340,6 +340,14 @@ class BusMonitor:
             self._chlor["output_percent"] = pct
         return pct
 
+    def set_datetime(self, when=None, auto_dst: bool = True) -> dict:
+        """Enqueue a Set-Date/Time (defaults to the host's current local time)."""
+        from .controller import datetime_fields
+        h, m, dow, day, mon, yr, dst = datetime_fields(when, auto_dst)
+        self._cmd_q.put(self._et.build_set_datetime(h, m, dow, day, mon, yr, dst))
+        return {"hour": h, "minute": m, "dow": dow, "day": day, "month": mon,
+                "year": 2000 + yr, "auto_dst": bool(dst)}
+
     def set_heat(
         self,
         pool_setpoint: int | None = None,

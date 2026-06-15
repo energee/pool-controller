@@ -57,6 +57,7 @@ ENDPOINTS = {
     "POST /heat": "{pool_setpoint, spa_setpoint, pool_mode, spa_mode}",
     "POST /schedule": "{id, circuit, start, end, days}",
     "POST /chlorinator": "{output}",
+    "POST /datetime": "{iso?} set clock (default now)",
 }
 
 
@@ -182,6 +183,8 @@ class PoolHandler(BaseHTTPRequestHandler):
             if value is None:
                 raise ValueError("body must include 'output' (0-100)")
             return self._set_chlor(value)
+        if parts == ["datetime"]:
+            return self._set_datetime(body)
         return self._err(404, f"no such path: /{'/'.join(parts)}")
 
     # --- control helpers ---------------------------------------------------
@@ -243,6 +246,13 @@ class PoolHandler(BaseHTTPRequestHandler):
         # to confirm against — report what was sent (best-effort; see HANDOFF).
         pct = self.monitor.set_chlorinator_output(int(value))
         self._send(200, {"sent": True, "output_percent": pct})
+
+    def _set_datetime(self, body: dict) -> None:
+        import datetime as dt
+        iso = body.get("iso")
+        when = dt.datetime.fromisoformat(iso) if iso else None
+        res = self.monitor.set_datetime(when)
+        self._send(200, {"sent": True, "datetime": res})
 
 
 def serve(

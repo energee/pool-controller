@@ -70,6 +70,7 @@ class Action:
     INTELLICHEM = 18          # IntelliChem chemistry controller status
     INTELLICHLOR_STATUS = 25
     VALVE_STATUS = 29
+    SET_DATETIME = 133        # 0x85 set the controller clock
     SET_CIRCUIT = 134         # 0x86 set a circuit on/off
     SET_HEAT = 136            # 0x88 set heat set-points / mode
     SET_SCHEDULE = 145        # 0x91 write a schedule

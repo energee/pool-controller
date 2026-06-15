@@ -58,6 +58,10 @@ class FakeMonitor:
         self.calls.append(("chlor", percent))
         return max(0, min(100, int(percent)))
 
+    def set_datetime(self, when=None, auto_dst=True) -> dict:
+        self.calls.append(("datetime", when))
+        return {"hour": 11, "minute": 30, "year": 2026}
+
     def wait_for(self, predicate, timeout=6.0, interval=0.02):
         deadline = time.monotonic() + timeout
         while time.monotonic() < deadline:
@@ -191,3 +195,11 @@ def test_post_chlorinator_output(server):
     assert code == 200
     assert body["output_percent"] == 60
     assert ("chlor", 60) in mon.calls
+
+
+def test_post_datetime(server):
+    mon, port = server
+    code, body = _post(port, "/datetime", {})
+    assert code == 200
+    assert body["sent"] is True
+    assert any(c[0] == "datetime" for c in mon.calls)

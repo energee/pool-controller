@@ -66,6 +66,20 @@ def test_decode_datetime():
     assert dt.iso == "2026-06-14 11:05"
 
 
+def test_build_set_datetime_round_trips():
+    from easytouch.controller import EasyTouch
+    et = EasyTouch(port="/dev/null")          # not opened; only builds the packet
+    dt = decode_datetime(et.build_set_datetime(11, 30, 0x40, 14, 6, 26))
+    assert (dt.hour, dt.minute, dt.dow, dt.day, dt.month, dt.year) == (11, 30, 0x40, 14, 6, 26)
+
+
+def test_datetime_fields_weekday_bit():
+    import datetime as _dt
+    from easytouch.controller import datetime_fields
+    # 2026-06-14 is a Sunday -> Pentair Sun bit = 0x01; year reported two-digit.
+    assert datetime_fields(_dt.datetime(2026, 6, 14, 11, 30)) == (11, 30, 0x01, 14, 6, 26, 1)
+
+
 # Synthetic pump-status payload with a distinct value at every documented offset,
 # so a transposed or mis-read field fails the test. Each offset is labeled inline.
 SYNTH_PUMP_DATA = bytes([

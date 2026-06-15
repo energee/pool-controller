@@ -260,3 +260,15 @@ def test_set_chlorinator_output_enqueues_raw_ic_frame():
     frames = ChlorinatorReader().feed(b"".join(stub.writes))
     assert frames and decode_ic(frames[0]).output_percent == 45
     assert mon.get_state()["chlorinator"]["output_percent"] == 45   # optimistic cache
+
+
+def test_set_datetime_enqueues_set_datetime_frame():
+    import datetime as _dt
+    mon = BusMonitor("x")
+    stub = StubSerial()
+    mon._et._serial = stub
+    res = mon.set_datetime(_dt.datetime(2026, 6, 14, 11, 30))
+    assert res["year"] == 2026 and res["dow"] == 0x01
+    mon._poll_once()
+    setdt = [p for p in _sent(stub) if p.cfi == C.Action.SET_DATETIME]
+    assert setdt and setdt[-1].data[:6] == bytes([11, 30, 0x01, 14, 6, 26])
