@@ -302,6 +302,18 @@ def test_ingests_software_version():
     assert mon.get_state()["version"]["version"] == "2.080"
 
 
+def test_set_pump_speed_enqueues_remote_and_speed_frames():
+    mon = BusMonitor("x")
+    stub = StubSerial()
+    mon._et._serial = stub
+    res = mon.set_pump_speed(1, 2400)
+    assert res["experimental"] is True
+    mon._poll_once()
+    sent = _sent(stub)
+    assert any(p.dst == C.Address.PUMP1 and p.cfi == 4 for p in sent)   # remote control
+    assert any(p.dst == C.Address.PUMP1 and p.cfi == 1 for p in sent)   # set speed
+
+
 def test_set_light_enqueues_set_color_frame():
     mon = BusMonitor("x")
     stub = StubSerial()

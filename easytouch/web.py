@@ -352,6 +352,11 @@ function pumpsCard(pumps, dt) {
   if (dt) body += row('Controller clock', esc(dt.iso));
   if (lastState && lastState.version) body += row('Firmware', esc(lastState.version.version));
   body += '<button class="ghost" style="margin-top:10px" onclick="setClock()">Set clock to now</button>';
+  // EXPERIMENTAL: direct pump RPM (unverified; may contend with the controller).
+  body += '<div class="field" style="margin-top:12px"><label>Pump # / RPM (experimental)</label>' +
+          '<div class="grid2"><input id="pump_n" type="number" value="1" min="1" max="4">' +
+          '<input id="pump_rpm" type="number" value="2400"></div></div>' +
+          '<button class="ghost" onclick="setPump()">Set RPM (experimental)</button>';
   return card('Pumps &amp; clock', body);
 }
 
@@ -437,6 +442,13 @@ async function setClock() {
 async function setLight(cmd) {
   hold();
   await postJSON('/light', {command: cmd});
+  afterChange();
+}
+
+async function setPump() {
+  hold();
+  await postJSON('/pump', {pump: Number(document.getElementById('pump_n').value),
+                          rpm: Number(document.getElementById('pump_rpm').value)});
   afterChange();
 }
 

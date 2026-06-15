@@ -61,6 +61,7 @@ ENDPOINTS = {
     "POST /chlorinator": "{output}",
     "POST /datetime": "{iso?} set clock (default now)",
     "POST /light": "{command}",
+    "POST /pump": "{pump, rpm} (EXPERIMENTAL, unverified)",
 }
 
 
@@ -192,6 +193,8 @@ class PoolHandler(BaseHTTPRequestHandler):
             return self._set_datetime(body)
         if parts == ["light"]:
             return self._set_light(body.get("command"))
+        if parts == ["pump"]:
+            return self._set_pump(body)
         return self._err(404, f"no such path: /{'/'.join(parts)}")
 
     # --- control helpers ---------------------------------------------------
@@ -266,6 +269,12 @@ class PoolHandler(BaseHTTPRequestHandler):
             raise ValueError("body must include 'command'")
         code = self.monitor.set_light(command)   # raises ValueError on unknown name
         self._send(200, {"sent": True, "command": command, "code": code})
+
+    def _set_pump(self, body: dict) -> None:
+        if body.get("pump") is None or body.get("rpm") is None:
+            raise ValueError("body must include 'pump' and 'rpm'")
+        res = self.monitor.set_pump_speed(int(body["pump"]), int(body["rpm"]))
+        self._send(200, {"sent": True, **res})   # res carries experimental: True
 
 
 def serve(

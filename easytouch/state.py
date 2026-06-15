@@ -376,6 +376,16 @@ class BusMonitor:
         self._cmd_q.put(self._et.build_set_light(code))
         return code
 
+    def set_pump_speed(self, pump: int, rpm: int) -> dict:
+        """EXPERIMENTAL pump RPM command (see :meth:`EasyTouch.set_pump_speed`).
+
+        Enqueues remote-control + set-speed frames. Unverified and may contend with
+        the controller's pump programs.
+        """
+        self._cmd_q.put(self._et.build_pump_remote_control(pump, True))
+        self._cmd_q.put(self._et.build_set_pump_speed(pump, rpm))
+        return {"pump": pump, "rpm": rpm, "experimental": True}
+
     def set_heat(
         self,
         pool_setpoint: int | None = None,

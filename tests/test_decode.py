@@ -200,6 +200,16 @@ def test_dispatch_routes_circuit_names():
     assert isinstance(decode(pkt), CircuitNames)
 
 
+def test_build_pump_speed_frames():
+    from easytouch.controller import EasyTouch
+    et = EasyTouch(port="/dev/null")
+    rc = decode_frame(et.build_pump_remote_control(1, True).to_bytes(idle=2))
+    assert rc.dst == C.Address.PUMP1 and rc.cfi == 4 and rc.data == bytes([0xFF])
+    sp = decode_frame(et.build_set_pump_speed(2, 3000).to_bytes(idle=2))
+    assert sp.dst == C.Address.PUMP2 and sp.cfi == 1
+    assert sp.data == bytes([0x02, 0xC4, 0x0B, 0xB8])     # 3000 = 0x0BB8, RPM register
+
+
 def test_dispatch_picks_controller_status():
     s = decode(decode_frame(REAL_STATUS))
     assert isinstance(s, ControllerStatus)

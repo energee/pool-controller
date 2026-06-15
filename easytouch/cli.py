@@ -15,6 +15,7 @@ Subcommands::
     easytouch set-chlor    set IntelliChlor generation output %
     easytouch set-clock    set the controller clock (default: now)
     easytouch light        send an IntelliBrite light command (theme/color/on/off)
+    easytouch set-pump     EXPERIMENTAL: command a pump RPM (unverified)
     easytouch serve        run the HTTP JSON API (owns the bus)
     easytouch raw          dump raw hex frames (debugging)
 
@@ -195,6 +196,13 @@ def cmd_set_heat(et: EasyTouch, args) -> int:
     return 0
 
 
+def cmd_set_pump(et: EasyTouch, args) -> int:
+    et.set_pump_speed(args.pump, args.rpm)
+    print(f"EXPERIMENTAL: sent pump {args.pump} remote-control + {args.rpm} RPM to {args.port}.")
+    print("Unverified; may contend with the controller's own pump programs.")
+    return 0
+
+
 def cmd_light(et: EasyTouch, args) -> int:
     code = et.set_light(args.command)
     print(f"Sent IntelliBrite light command {args.command!r} (code {code}) to {args.port}.")
@@ -328,6 +336,11 @@ def build_parser() -> argparse.ArgumentParser:
                          "red/white/magenta, color-sync/color-swim/color-set, on/off, "
                          "or a raw code")
     lt.set_defaults(func=cmd_light)
+
+    sp = sub.add_parser("set-pump", help="EXPERIMENTAL: command a pump RPM (unverified)")
+    sp.add_argument("--pump", type=int, required=True, help="pump number (1-4)")
+    sp.add_argument("--rpm", type=int, required=True, help="target RPM")
+    sp.set_defaults(func=cmd_set_pump)
 
     sv = sub.add_parser("serve", help="run the HTTP JSON API (owns the bus)")
     sv.add_argument("--http-host", default="0.0.0.0", help="HTTP bind host (default 0.0.0.0)")

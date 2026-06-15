@@ -223,6 +223,37 @@ class EasyTouch:
         self.send(self.build_set_light(code))
         return code
 
+    # --- pumps (EXPERIMENTAL) ----------------------------------------------
+    def _pump_command(self, pump: int, cfi: int, *data: int) -> Packet:
+        """Build a frame addressed to a pump (``0x60 + (pump-1)``), pump 1-based."""
+        addr = C.Address.PUMP1 + (pump - 1)
+        return Packet(sub=self.controller_sub, dst=addr, src=self.address,
+                      cfi=cfi, data=bytes(data))
+
+    def build_pump_remote_control(self, pump: int, enable: bool = True) -> Packet:
+        """Build a pump Remote-Control frame (pump action 4): take/release control."""
+        return self._pump_command(pump, 4, 0xFF if enable else 0x00)
+
+    def build_set_pump_speed(self, pump: int, rpm: int) -> Packet:
+        """Build a pump Set-Speed frame (pump action 1) writing the RPM register.
+
+        Writes IntelliFlo register 0x02C4 with a big-endian RPM. The register and
+        sequence are the documented reference and are **not** verified here.
+        """
+        return self._pump_command(pump, 1, 0x02, 0xC4, (rpm >> 8) & 0xFF, rpm & 0xFF)
+
+    def set_pump_speed(self, pump: int, rpm: int) -> dict:
+        """EXPERIMENTAL: take remote control of a pump and command an RPM.
+
+        Unverified against hardware and it **contends** with the controller's own
+        pump programs — the controller may override within seconds and the pump
+        reverts without a periodic refresh. The frame builders are unit-tested; live
+        behavior is not. Returns the request echo with ``experimental: True``.
+        """
+        self.send(self.build_pump_remote_control(pump, True))
+        self.send(self.build_set_pump_speed(pump, rpm))
+        return {"pump": pump, "rpm": rpm, "experimental": True}
+
     # --- heat / temperature ------------------------------------------------
     def build_get_heat(self) -> Packet:
         """Build a Get-Heat (CFI 200) request to the main controller."""

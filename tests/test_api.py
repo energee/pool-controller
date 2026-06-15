@@ -71,6 +71,10 @@ class FakeMonitor:
         self.calls.append(("light", command))
         return C.resolve_light_command(command)
 
+    def set_pump_speed(self, pump, rpm) -> dict:
+        self.calls.append(("pump", pump, rpm))
+        return {"pump": pump, "rpm": rpm, "experimental": True}
+
     def wait_for(self, predicate, timeout=6.0, interval=0.02):
         deadline = time.monotonic() + timeout
         while time.monotonic() < deadline:
@@ -255,3 +259,11 @@ def test_post_light_unknown_is_400(server):
     with pytest.raises(urllib.error.HTTPError) as exc:
         _post(port, "/light", {"command": "disco"})
     assert exc.value.code == 400
+
+
+def test_post_pump_experimental(server):
+    mon, port = server
+    code, body = _post(port, "/pump", {"pump": 1, "rpm": 2400})
+    assert code == 200
+    assert body["experimental"] is True
+    assert ("pump", 1, 2400) in mon.calls
