@@ -17,15 +17,20 @@ GET         ``/``                        the human dashboard (HTML)
 GET         ``/api``                     endpoint index (JSON)
 GET         ``/state``                   full cached snapshot
 GET         ``/status`` ``/heat``        decoded subsets
-            ``/datetime`` ``/pumps``
-            ``/schedules`` ``/chlorinator``
-            ``/raw``
+            ``/datetime`` ``/pumps`` ``/schedules`` ``/chlorinator``
+            ``/version`` ``/valves`` ``/intellichem`` ``/names`` ``/raw``
 GET         ``/circuit/<name|num>/<on|off>``   set a circuit (convenience)
 GET         ``/heat/pool/<temp>``        set pool setpoint (convenience)
 GET         ``/heat/spa/<temp>``         set spa setpoint (convenience)
+GET         ``/chlorinator/output/<pct>``      set salt output % (convenience)
+GET         ``/light/<command>``         IntelliBrite light command (convenience)
 POST        ``/circuit``                 ``{circuit, on}``
 POST        ``/heat``                    ``{pool_setpoint, spa_setpoint, pool_mode, spa_mode}``
 POST        ``/schedule``                ``{id, circuit, start, end, days}``
+POST        ``/chlorinator``             ``{output}``
+POST        ``/datetime``                ``{iso?}`` (default: now)
+POST        ``/light``                   ``{command}``
+POST        ``/pump``                    ``{pump, rpm}`` (EXPERIMENTAL, unverified)
 ==========  ===========================  ===================================
 """
 from __future__ import annotations
