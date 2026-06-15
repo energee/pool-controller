@@ -114,6 +114,22 @@ def test_decode_pump_status_offsets():
     assert p.run_minutes == 150        # body 19*60 + body 20
 
 
+def test_decode_version_best_effort():
+    from easytouch.decode import SoftwareVersion, decode_version
+    pkt = Packet(sub=0x27, dst=0x0F, src=C.Address.MAIN, cfi=C.Action.SW_VERSION,
+                 data=bytes([0x02, 0x50, 0x00, 0x00]))   # best-effort major 2, minor 80
+    v = decode_version(pkt)
+    assert isinstance(v, SoftwareVersion)
+    assert (v.major, v.minor, v.version, v.raw) == (2, 0x50, "2.080", "02500000")
+
+
+def test_dispatch_routes_version():
+    from easytouch.decode import SoftwareVersion
+    pkt = Packet(sub=0x27, dst=0x0F, src=C.Address.MAIN, cfi=C.Action.SW_VERSION,
+                 data=bytes([0x02, 0x50]))
+    assert isinstance(decode(pkt), SoftwareVersion)
+
+
 def test_dispatch_picks_controller_status():
     s = decode(decode_frame(REAL_STATUS))
     assert isinstance(s, ControllerStatus)

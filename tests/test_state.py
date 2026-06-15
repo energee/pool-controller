@@ -262,6 +262,16 @@ def test_set_chlorinator_output_enqueues_raw_ic_frame():
     assert mon.get_state()["chlorinator"]["output_percent"] == 45   # optimistic cache
 
 
+def test_ingests_software_version():
+    from easytouch.protocol import Packet
+    mon = BusMonitor("x")
+    ver = Packet(sub=0x27, dst=0x0F, src=C.Address.MAIN, cfi=C.Action.SW_VERSION,
+                 data=bytes([0x02, 0x50])).to_bytes(idle=2)
+    mon._et._serial = StubSerial(ver)
+    mon._poll_once()
+    assert mon.get_state()["version"]["version"] == "2.080"
+
+
 def test_set_datetime_enqueues_set_datetime_frame():
     import datetime as _dt
     mon = BusMonitor("x")

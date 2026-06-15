@@ -28,6 +28,7 @@ from .decode import (
     decode_datetime,
     decode_heat_status,
     decode_schedule,
+    decode_version,
     encode_days,
     merge_heat_mode,
 )
@@ -386,6 +387,25 @@ class EasyTouch:
             if (dt.year, dt.month, dt.day, dt.hour) == (year, month, day, hour):
                 return dt
         raise TimeoutError("date/time set not confirmed")
+
+    # --- version -----------------------------------------------------------
+    def build_get_version(self) -> Packet:
+        """Build a Get-Version (CFI 253) request to the main controller."""
+        return self._command(C.Action.GET_VERSION, 0)
+
+    def get_version(self, timeout: float = 6.0, request: bool = True):
+        """Request and return the controller firmware version (CFI 252)."""
+        requested_sub = self.controller_sub
+        if request:
+            self.send(self.build_get_version())
+        deadline = time.monotonic() + timeout
+        for pkt in self._iter_until(deadline):
+            if pkt.cfi == C.Action.SW_VERSION and pkt.src == C.Address.MAIN:
+                return decode_version(pkt)
+            if request and self.controller_sub != requested_sub:
+                requested_sub = self.controller_sub
+                self.send(self.build_get_version())
+        raise TimeoutError(f"no version within {timeout}s")
 
 
 def _parse_hhmm(text: str) -> tuple[int, int]:

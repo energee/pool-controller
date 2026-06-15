@@ -328,6 +328,7 @@ function pumpsCard(pumps, dt) {
     }).join('');
   }
   if (dt) body += row('Controller clock', esc(dt.iso));
+  if (lastState && lastState.version) body += row('Firmware', esc(lastState.version.version));
   body += '<button class="ghost" style="margin-top:10px" onclick="setClock()">Set clock to now</button>';
   return card('Pumps &amp; clock', body);
 }

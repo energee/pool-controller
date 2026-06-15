@@ -30,6 +30,7 @@ from .decode import (
     HeatStatus,
     PumpStatus,
     Schedule,
+    SoftwareVersion,
     decode,
     encode_days,
     merge_heat_mode,
@@ -206,6 +207,8 @@ class BusMonitor:
                 self.state.setdefault("pumps", {})[obj.pump] = obj
             elif isinstance(obj, Schedule):
                 self.state.setdefault("schedules", {})[obj.id] = obj
+            elif isinstance(obj, SoftwareVersion):
+                self.state["version"] = obj
             self.raw[pkt.cfi] = pkt.to_bytes(idle=0).hex()
             self.last_packet_ts = time.time()
             if pkt.src == C.Address.MAIN:
@@ -246,6 +249,8 @@ class BusMonitor:
         if now >= self._next_refresh:
             self._next_refresh = now + self.refresh_interval
             self._cmd_q.put(self._et.build_get_heat())
+            if "version" not in self.state:        # firmware is static; ask until seen
+                self._cmd_q.put(self._et.build_get_version())
             # Queue a full schedule re-scan. The controller answers only for the id
             # in the request (a single id-0 request never surfaces slots 1..N) and
             # drops a burst of requests, so slots are polled one at a time, paced,
@@ -277,6 +282,7 @@ class BusMonitor:
             status = self.state.get("status")
             heat = self.state.get("heat")
             dt = self.state.get("datetime")
+            ver = self.state.get("version")
             pumps = dict(self.state.get("pumps", {}))
             scheds = dict(self.state.get("schedules", {}))
             raw = dict(self.raw)
@@ -300,6 +306,7 @@ class BusMonitor:
             "status": _to_jsonable(status) if status else None,
             "heat": _to_jsonable(heat) if heat else None,
             "datetime": _to_jsonable(dt) if dt else None,
+            "version": _to_jsonable(ver) if ver else None,
             "pumps": {n: _to_jsonable(p) for n, p in pumps.items()},
             "schedules": {i: _to_jsonable(s) for i, s in scheds.items()},
             "chlorinator": chlor or None,

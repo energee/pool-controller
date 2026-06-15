@@ -32,6 +32,7 @@ class FakeMonitor:
                 "status": dict(self._status), "heat": dict(self._heat), "datetime": None,
                 "pumps": {}, "schedules": {},
                 "chlorinator": {"salt_ppm": 2750, "output_percent": 30, "status_flags": 128},
+                "version": {"version": "2.080", "major": 2, "minor": 80, "raw": "0250"},
                 "raw": {2: "00ffa5"}}
 
     def set_circuit(self, n: int, on: bool) -> None:
@@ -203,3 +204,10 @@ def test_post_datetime(server):
     assert code == 200
     assert body["sent"] is True
     assert any(c[0] == "datetime" for c in mon.calls)
+
+
+def test_get_version_subset(server):
+    _mon, port = server
+    code, body = _get(port, "/version")
+    assert code == 200
+    assert body["version"] == "2.080"

@@ -154,6 +154,23 @@ class HeatStatus:
     cool_setpoint: int      # body 15: heat-pump/UltraTemp chill set-point (100 = parked)
 
 
+@dataclass
+class SoftwareVersion:
+    """Decoded ``Action.SW_VERSION`` (CFI 252) — controller firmware version.
+
+    .. note::
+       The exact field layout is **not confirmed** against this hardware (no CFI 252
+       frame was captured). ``version`` is a best-effort read of the first two
+       payload bytes as ``major.minor``; ``raw`` (the full payload hex) is the
+       authoritative value until the layout is verified on a live controller.
+    """
+
+    version: str        # best-effort "major.minor"
+    major: int
+    minor: int
+    raw: str            # hex of the full payload
+
+
 # --- Schedules --------------------------------------------------------------
 # Day-of-week bitmask, per the nodejs-poolController convention. The raw byte is
 # always exposed alongside the decoded names in case a controller orders the
@@ -324,6 +341,13 @@ def decode_heat_status(pkt: Packet) -> HeatStatus:
     )
 
 
+def decode_version(pkt: Packet) -> SoftwareVersion:
+    b = _spec_reader(pkt)
+    major, minor = b(6), b(7)
+    return SoftwareVersion(version=f"{major}.{minor:03d}", major=major, minor=minor,
+                           raw=bytes(pkt.data).hex())
+
+
 def decode(pkt: Packet):
     """Dispatch a packet to the most specific decoder available.
 
@@ -339,4 +363,6 @@ def decode(pkt: Packet):
         return decode_schedule(pkt)
     if pkt.cfi == C.Action.PUMP_STATUS and C.is_pump(pkt.src):
         return decode_pump_status(pkt)
+    if pkt.cfi == C.Action.SW_VERSION and pkt.src == C.Address.MAIN:
+        return decode_version(pkt)
     return Unknown(packet=pkt, description=str(pkt))
