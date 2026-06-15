@@ -148,6 +148,16 @@ class EasyTouch:
         self.serial.write(pkt.to_bytes(idle=idle))
         self.serial.flush()
 
+    def send_raw(self, data: bytes) -> None:
+        """Write raw bytes to the bus (e.g. an IntelliChlor native-protocol frame).
+
+        The chlorinator does not speak A5, so its frames are pre-built byte strings
+        (see :func:`easytouch.intellichlor.build_set_output`) sent verbatim rather
+        than encoded from a :class:`Packet`.
+        """
+        self.serial.write(data)
+        self.serial.flush()
+
     def _command(self, cfi: int, *data: int) -> Packet:
         """Build a command/request packet from us (``self.address``) to the main
         controller, stamped with the learned protocol sub-version."""

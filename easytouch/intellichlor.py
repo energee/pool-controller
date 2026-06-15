@@ -148,6 +148,26 @@ class ChlorinatorReader:
         self._buf.clear()
 
 
+def build_set_output(percent: int, dest: int = ICAddress.CHLORINATOR) -> bytes:
+    """Build an IntelliChlor Set-Output frame: ``10 02 <dest> 11 <pct> <chk> 10 03``.
+
+    ``percent`` is the chlorine-generation level 0–100 (clamped). Returns the raw
+    on-wire bytes: the chlorinator speaks its native protocol, not A5, so this is
+    written to the bus verbatim (see
+    :meth:`easytouch.controller.EasyTouch.send_raw`) rather than wrapped in a
+    :class:`~easytouch.protocol.Packet`. Byte-for-byte matches the real captured
+    frame ``10 02 50 11 1e 91 10 03`` (30%).
+
+    .. note::
+       On a system with a *present* EasyTouch controller the controller also drives
+       the cell and may overwrite a directly-injected output on its next cycle, so
+       treat this as best-effort (see HANDOFF for the override caveat).
+    """
+    pct = max(0, min(100, int(percent)))
+    body = bytes([DLE, STX, dest, ICCommand.SET_OUTPUT, pct])
+    return body + bytes([ic_checksum(body)]) + IC_END
+
+
 def decode_ic(frame: ICFrame):
     """Decode a validated :class:`ICFrame` into a typed value, or ``None``."""
     if frame.cmd == ICCommand.STATUS and len(frame.data) >= 2:

@@ -12,6 +12,7 @@ Subcommands::
     easytouch set-schedule write a schedule slot
     easytouch heat         print heat/temperature status
     easytouch set-heat     set heat set-points and/or modes
+    easytouch set-chlor    set IntelliChlor generation output %
     easytouch serve        run the HTTP JSON API (owns the bus)
     easytouch raw          dump raw hex frames (debugging)
 
@@ -192,6 +193,15 @@ def cmd_set_heat(et: EasyTouch, args) -> int:
     return 0
 
 
+def cmd_set_chlor(et: EasyTouch, args) -> int:
+    from .intellichlor import build_set_output
+    pct = max(0, min(100, args.percent))
+    et.send_raw(build_set_output(pct))
+    print(f"Sent IntelliChlor output {pct}% to {args.port}.")
+    print("Note: a present EasyTouch controller may override this on its next cycle.")
+    return 0
+
+
 def cmd_serve(args) -> int:
     """Run the HTTP API. Unlike other commands this owns the bus via a BusMonitor,
     so it must NOT be wrapped in the shared per-request EasyTouch connection."""
@@ -282,6 +292,10 @@ def build_parser() -> argparse.ArgumentParser:
     sh.add_argument("--timeout", type=float, default=8.0)
     sh.add_argument("--no-confirm", action="store_true", help="fire and forget")
     sh.set_defaults(func=cmd_set_heat)
+
+    chl = sub.add_parser("set-chlor", help="set IntelliChlor generation output percent")
+    chl.add_argument("--percent", type=int, required=True, help="output percent 0-100")
+    chl.set_defaults(func=cmd_set_chlor)
 
     sv = sub.add_parser("serve", help="run the HTTP JSON API (owns the bus)")
     sv.add_argument("--http-host", default="0.0.0.0", help="HTTP bind host (default 0.0.0.0)")

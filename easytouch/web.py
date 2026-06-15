@@ -287,6 +287,10 @@ function chlorinatorCard(c) {
   const out = (c.output_percent == null) ? '—' : (c.output_percent + '%');
   let body =
     '<div class="grid2">' + tile('Salt', salt) + tile('Output', out) + '</div>';
+  body += '<div class="field" style="margin-top:10px"><label>Set output %</label>' +
+          '<input id="chlor_out" type="number" min="0" max="100" value="' +
+          esc(c.output_percent == null ? 0 : c.output_percent) + '"></div>' +
+          '<button onclick="setChlor()">Set output</button>';
   if (c.status_flags != null) {
     body += row('Status flags', '0x' + Number(c.status_flags).toString(16));
   }
@@ -390,6 +394,13 @@ async function setCircuit(num, on) {
   hold();
   try { await fetch('/circuit/' + num + '/' + (on ? 'on' : 'off')); }
   catch (e) { alert('circuit failed: ' + e.message); }
+  afterChange();
+}
+
+async function setChlor() {
+  hold();
+  const v = Number(document.getElementById('chlor_out').value);
+  await postJSON('/chlorinator', {output: v});
   afterChange();
 }
 

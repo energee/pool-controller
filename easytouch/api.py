@@ -52,9 +52,11 @@ ENDPOINTS = {
     "GET /circuit/<name-or-num>/<on|off>": "set a circuit",
     "GET /heat/pool/<temp>": "set pool setpoint",
     "GET /heat/spa/<temp>": "set spa setpoint",
+    "GET /chlorinator/output/<pct>": "set chlorinator output %",
     "POST /circuit": "{circuit, on}",
     "POST /heat": "{pool_setpoint, spa_setpoint, pool_mode, spa_mode}",
     "POST /schedule": "{id, circuit, start, end, days}",
+    "POST /chlorinator": "{output}",
 }
 
 
@@ -151,6 +153,8 @@ class PoolHandler(BaseHTTPRequestHandler):
             return self._circuit(parts[1], parts[2])
         if head == "heat" and len(parts) == 3 and parts[1] in ("pool", "spa"):
             return self._heat_setpoint(parts[1], parts[2])
+        if head == "chlorinator" and len(parts) == 3 and parts[1] == "output":
+            return self._chlor_output(parts[2])
         return self._err(404, f"no such path: /{'/'.join(parts)}")
 
     # --- POST --------------------------------------------------------------
@@ -173,6 +177,11 @@ class PoolHandler(BaseHTTPRequestHandler):
                 if key not in body:
                     raise ValueError(f"body must include '{key}'")
             return self._set_schedule(body)
+        if parts == ["chlorinator"]:
+            value = body.get("output", body.get("percent"))
+            if value is None:
+                raise ValueError("body must include 'output' (0-100)")
+            return self._set_chlor(value)
         return self._err(404, f"no such path: /{'/'.join(parts)}")
 
     # --- control helpers ---------------------------------------------------
@@ -221,6 +230,19 @@ class PoolHandler(BaseHTTPRequestHandler):
         if st is None:
             return self._send(202, {"accepted": True, "id": sid})
         return self._send(200, {"confirmed": True, "schedule": st["schedules"][sid]})
+
+    def _chlor_output(self, pct: str) -> None:
+        try:
+            value = int(pct)
+        except ValueError as exc:
+            raise ValueError(f"output must be an integer 0-100, got {pct!r}") from exc
+        self._set_chlor(value)
+
+    def _set_chlor(self, value) -> None:
+        # The cell's status frame carries salt but not output, so there is nothing
+        # to confirm against — report what was sent (best-effort; see HANDOFF).
+        pct = self.monitor.set_chlorinator_output(int(value))
+        self._send(200, {"sent": True, "output_percent": pct})
 
 
 def serve(

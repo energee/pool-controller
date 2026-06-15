@@ -38,6 +38,7 @@ from .intellichlor import (
     ChlorinatorReader,
     ChlorinatorSetOutput,
     ChlorinatorStatus,
+    build_set_output,
     decode_ic,
 )
 
@@ -260,7 +261,12 @@ class BusMonitor:
             except queue.Empty:
                 return
             try:
-                self._et.send(pkt)
+                # Most commands are A5 Packets; IntelliChlor frames are pre-built
+                # raw bytes (its native protocol) and go out verbatim.
+                if isinstance(pkt, (bytes, bytearray)):
+                    self._et.send_raw(bytes(pkt))
+                else:
+                    self._et.send(pkt)
             except Exception as exc:                  # noqa: BLE001
                 self.error = str(exc)
 
@@ -319,6 +325,20 @@ class BusMonitor:
     # --- commands (enqueued; the single bus owner sends them) --------------
     def set_circuit(self, circuit: int, on: bool) -> None:
         self._cmd_q.put(self._et.build_set_circuit(circuit, bool(on)))
+
+    def set_chlorinator_output(self, percent: int) -> int:
+        """Enqueue an IntelliChlor Set-Output (raw native frame); return the clamped %.
+
+        The cell's status frame (cmd 0x12) carries salt but not output, so the
+        requested value is cached optimistically here for the UI; the next observed
+        controller set-output frame (cmd 0x11) corrects it. Best-effort — a present
+        EasyTouch controller may override a direct injection (see HANDOFF).
+        """
+        pct = max(0, min(100, int(percent)))
+        self._cmd_q.put(build_set_output(pct))
+        with self._lock:
+            self._chlor["output_percent"] = pct
+        return pct
 
     def set_heat(
         self,

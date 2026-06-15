@@ -80,3 +80,15 @@ def test_reader_reassembles_split_frame():
     assert r.feed(SALT_STATUS[:4]) == []          # first half: no complete frame yet
     frames = r.feed(SALT_STATUS[4:])              # remainder arrives
     assert len(frames) == 1 and decode_ic(frames[0]).salt_ppm == 2750
+
+
+def test_build_set_output_matches_real_frame():
+    from easytouch.intellichlor import build_set_output
+    assert build_set_output(30) == SET_OUTPUT     # byte-for-byte the captured frame
+
+
+def test_build_set_output_clamps_and_round_trips():
+    from easytouch.intellichlor import build_set_output
+    assert decode_ic(ChlorinatorReader().feed(build_set_output(45))[0]).output_percent == 45
+    assert decode_ic(ChlorinatorReader().feed(build_set_output(150))[0]).output_percent == 100
+    assert decode_ic(ChlorinatorReader().feed(build_set_output(-5))[0]).output_percent == 0

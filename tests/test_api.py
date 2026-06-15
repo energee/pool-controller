@@ -54,6 +54,10 @@ class FakeMonitor:
     def set_schedule(self, sid, circuit, start, end, days) -> None:
         self.calls.append(("schedule", sid, circuit, start, end, days))
 
+    def set_chlorinator_output(self, percent) -> int:
+        self.calls.append(("chlor", percent))
+        return max(0, min(100, int(percent)))
+
     def wait_for(self, predicate, timeout=6.0, interval=0.02):
         deadline = time.monotonic() + timeout
         while time.monotonic() < deadline:
@@ -171,3 +175,19 @@ def test_unknown_path_is_404(server):
     with pytest.raises(urllib.error.HTTPError) as exc:
         _get(port, "/nope")
     assert exc.value.code == 404
+
+
+def test_get_chlorinator_output_sets(server):
+    mon, port = server
+    code, body = _get(port, "/chlorinator/output/45")
+    assert code == 200
+    assert body["sent"] is True and body["output_percent"] == 45
+    assert ("chlor", 45) in mon.calls
+
+
+def test_post_chlorinator_output(server):
+    mon, port = server
+    code, body = _post(port, "/chlorinator", {"output": 60})
+    assert code == 200
+    assert body["output_percent"] == 60
+    assert ("chlor", 60) in mon.calls

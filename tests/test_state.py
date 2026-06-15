@@ -248,3 +248,15 @@ def test_package_exports_full_api_surface():
     assert BM is BusMonitor
     for name in ("BusMonitor", "HeatStatus", "decode_heat_status", "serve"):
         assert name in easytouch.__all__
+
+
+def test_set_chlorinator_output_enqueues_raw_ic_frame():
+    from easytouch.intellichlor import ChlorinatorReader, decode_ic
+    mon = BusMonitor("x")
+    stub = StubSerial()
+    mon._et._serial = stub
+    assert mon.set_chlorinator_output(45) == 45
+    mon._poll_once()                               # drains the command queue
+    frames = ChlorinatorReader().feed(b"".join(stub.writes))
+    assert frames and decode_ic(frames[0]).output_percent == 45
+    assert mon.get_state()["chlorinator"]["output_percent"] == 45   # optimistic cache

@@ -38,6 +38,7 @@ from .intellichlor import (
     ChlorinatorReader,
     ChlorinatorSetOutput,
     ChlorinatorStatus,
+    build_set_output,
     decode_ic,
 )
 from .protocol import ChecksumError, Packet, checksum
@@ -68,6 +69,7 @@ __all__ = [
     "ChlorinatorReader",
     "ChlorinatorStatus",
     "ChlorinatorSetOutput",
+    "build_set_output",
     "decode_ic",
     "BusMonitor",
     "serve",
