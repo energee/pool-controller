@@ -205,6 +205,25 @@ class IntelliChem:
     raw: str            # hex of the full payload
 
 
+@dataclass
+class CircuitNames:
+    """Decoded ``Action.CIRCUIT_NAMES`` (CFI 11) — one circuit's configuration.
+
+    .. note::
+       Layout is **not confirmed** against this hardware (no CFI 11 capture). The
+       controller gives each circuit a ``function``/type and a ``name_id`` that
+       indexes a built-in name table (plus custom names from CFI 10); mapping
+       ``name_id`` → display text needs a live capture, so only the structured ids
+       and ``raw`` are exposed and ``DEFAULT_CIRCUITS`` stays the display fallback.
+       ``raw`` is authoritative.
+    """
+
+    circuit: int
+    function: int
+    name_id: int
+    raw: str
+
+
 # --- Schedules --------------------------------------------------------------
 # Day-of-week bitmask, per the nodejs-poolController convention. The raw byte is
 # always exposed alongside the decoded names in case a controller orders the
@@ -399,6 +418,12 @@ def decode_intellichem(pkt: Packet) -> IntelliChem:
     )
 
 
+def decode_circuit_names(pkt: Packet) -> CircuitNames:
+    b = _spec_reader(pkt)
+    return CircuitNames(circuit=b(6), function=b(7), name_id=b(8),
+                        raw=bytes(pkt.data).hex())
+
+
 def decode(pkt: Packet):
     """Dispatch a packet to the most specific decoder available.
 
@@ -420,4 +445,6 @@ def decode(pkt: Packet):
         return decode_valve(pkt)
     if pkt.cfi == C.Action.INTELLICHEM and pkt.src in (C.Address.INTELLICHEM, C.Address.MAIN):
         return decode_intellichem(pkt)
+    if pkt.cfi == C.Action.CIRCUIT_NAMES and pkt.src == C.Address.MAIN:
+        return decode_circuit_names(pkt)
     return Unknown(packet=pkt, description=str(pkt))

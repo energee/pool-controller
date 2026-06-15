@@ -262,6 +262,16 @@ def test_set_chlorinator_output_enqueues_raw_ic_frame():
     assert mon.get_state()["chlorinator"]["output_percent"] == 45   # optimistic cache
 
 
+def test_ingests_circuit_names():
+    from easytouch.protocol import Packet
+    mon = BusMonitor("x")
+    f = Packet(sub=0x27, dst=0x0F, src=C.Address.MAIN, cfi=C.Action.CIRCUIT_NAMES,
+               data=bytes([0x06, 0x02, 0x48])).to_bytes(idle=2)
+    mon._et._serial = StubSerial(f)
+    mon._poll_once()
+    assert mon.get_state()["names"][6]["name_id"] == 0x48
+
+
 def test_ingests_intellichem():
     from easytouch.protocol import Packet
     mon = BusMonitor("x")

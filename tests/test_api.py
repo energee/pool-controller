@@ -35,6 +35,7 @@ class FakeMonitor:
                 "version": {"version": "2.080", "major": 2, "minor": 80, "raw": "0250"},
                 "valves": {"valves": [0, 1, 2], "raw": "000102"},
                 "intellichem": {"ph": 7.52, "orp": 700, "ph_setpoint": 7.6, "orp_setpoint": 720},
+                "names": {6: {"circuit": 6, "function": 2, "name_id": 72, "raw": "060248"}},
                 "raw": {2: "00ffa5"}}
 
     def set_circuit(self, n: int, on: bool) -> None:
@@ -232,6 +233,13 @@ def test_get_intellichem_subset(server):
     code, body = _get(port, "/intellichem")
     assert code == 200
     assert body["orp"] == 700
+
+
+def test_get_names_subset(server):
+    _mon, port = server
+    code, body = _get(port, "/names")
+    assert code == 200
+    assert body["6"]["name_id"] == 72       # JSON object keys are strings
 
 
 def test_get_light_command(server):

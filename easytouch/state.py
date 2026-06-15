@@ -25,6 +25,7 @@ from typing import Callable
 from . import constants as C
 from .controller import DEFAULT_BAUD, EasyTouch
 from .decode import (
+    CircuitNames,
     ControllerStatus,
     DateTime,
     HeatStatus,
@@ -215,6 +216,8 @@ class BusMonitor:
                 self.state["valves"] = obj
             elif isinstance(obj, IntelliChem):
                 self.state["intellichem"] = obj
+            elif isinstance(obj, CircuitNames):
+                self.state.setdefault("names", {})[obj.circuit] = obj
             self.raw[pkt.cfi] = pkt.to_bytes(idle=0).hex()
             self.last_packet_ts = time.time()
             if pkt.src == C.Address.MAIN:
@@ -291,6 +294,7 @@ class BusMonitor:
             ver = self.state.get("version")
             valves = self.state.get("valves")
             chem = self.state.get("intellichem")
+            names = dict(self.state.get("names", {}))
             pumps = dict(self.state.get("pumps", {}))
             scheds = dict(self.state.get("schedules", {}))
             raw = dict(self.raw)
@@ -317,6 +321,7 @@ class BusMonitor:
             "version": _to_jsonable(ver) if ver else None,
             "valves": _to_jsonable(valves) if valves else None,
             "intellichem": _to_jsonable(chem) if chem else None,
+            "names": {n: _to_jsonable(o) for n, o in names.items()},
             "pumps": {n: _to_jsonable(p) for n, p in pumps.items()},
             "schedules": {i: _to_jsonable(s) for i, s in scheds.items()},
             "chlorinator": chlor or None,

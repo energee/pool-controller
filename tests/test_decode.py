@@ -184,6 +184,22 @@ def test_build_set_light_frame():
     assert pkt.cfi == C.Action.SET_COLOR and pkt.data == bytes([177])
 
 
+def test_decode_circuit_names():
+    from easytouch.decode import CircuitNames, decode_circuit_names
+    pkt = Packet(sub=0x27, dst=0x0F, src=C.Address.MAIN, cfi=C.Action.CIRCUIT_NAMES,
+                 data=bytes([0x06, 0x02, 0x48]))   # circuit 6, function 2, name id 0x48
+    c = decode_circuit_names(pkt)
+    assert isinstance(c, CircuitNames)
+    assert (c.circuit, c.function, c.name_id, c.raw) == (6, 2, 0x48, "060248")
+
+
+def test_dispatch_routes_circuit_names():
+    from easytouch.decode import CircuitNames
+    pkt = Packet(sub=0x27, dst=0x0F, src=C.Address.MAIN, cfi=C.Action.CIRCUIT_NAMES,
+                 data=bytes([0x06, 0x02, 0x48]))
+    assert isinstance(decode(pkt), CircuitNames)
+
+
 def test_dispatch_picks_controller_status():
     s = decode(decode_frame(REAL_STATUS))
     assert isinstance(s, ControllerStatus)
