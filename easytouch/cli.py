@@ -14,6 +14,7 @@ Subcommands::
     easytouch set-heat     set heat set-points and/or modes
     easytouch set-chlor    set IntelliChlor generation output %
     easytouch set-clock    set the controller clock (default: now)
+    easytouch light        send an IntelliBrite light command (theme/color/on/off)
     easytouch serve        run the HTTP JSON API (owns the bus)
     easytouch raw          dump raw hex frames (debugging)
 
@@ -194,6 +195,12 @@ def cmd_set_heat(et: EasyTouch, args) -> int:
     return 0
 
 
+def cmd_light(et: EasyTouch, args) -> int:
+    code = et.set_light(args.command)
+    print(f"Sent IntelliBrite light command {args.command!r} (code {code}) to {args.port}.")
+    return 0
+
+
 def cmd_set_clock(et: EasyTouch, args) -> int:
     import datetime as dt
     when = dt.datetime.fromisoformat(args.iso) if args.iso else None
@@ -314,6 +321,13 @@ def build_parser() -> argparse.ArgumentParser:
     sk.add_argument("--timeout", type=float, default=8.0)
     sk.add_argument("--no-confirm", action="store_true", help="fire and forget")
     sk.set_defaults(func=cmd_set_clock)
+
+    lt = sub.add_parser("light", help="send an IntelliBrite light command")
+    lt.add_argument("command",
+                    help="party/romance/caribbean/american/sunset/royal, blue/green/"
+                         "red/white/magenta, color-sync/color-swim/color-set, on/off, "
+                         "or a raw code")
+    lt.set_defaults(func=cmd_light)
 
     sv = sub.add_parser("serve", help="run the HTTP JSON API (owns the bus)")
     sv.add_argument("--http-host", default="0.0.0.0", help="HTTP bind host (default 0.0.0.0)")

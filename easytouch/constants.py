@@ -70,6 +70,7 @@ class Action:
     INTELLICHEM = 18          # IntelliChem chemistry controller status
     INTELLICHLOR_STATUS = 25
     VALVE_STATUS = 29
+    SET_COLOR = 96            # 0x60 IntelliBrite light command
     SET_DATETIME = 133        # 0x85 set the controller clock
     SET_CIRCUIT = 134         # 0x86 set a circuit on/off
     SET_HEAT = 136            # 0x88 set heat set-points / mode
@@ -156,3 +157,31 @@ RUNMODE_SERVICE = 0x01
 RUNMODE_CELSIUS = 0x04
 RUNMODE_FREEZE = 0x08
 RUNMODE_TIMEOUT = 0x80
+
+
+# --- IntelliBrite light commands -------------------------------------------
+# Data byte for Action.SET_COLOR (CFI 96): on/off, the color-mode controls, the
+# seven light shows, and the five fixed colors. This is the documented
+# IntelliTouch/EasyTouch mapping (per nodejs-poolController); the command is
+# global to the configured light group. NOT yet confirmed on this hardware.
+LIGHT_COMMANDS = {
+    "off": 0, "on": 1,
+    "color_sync": 128, "color_swim": 144, "color_set": 160,
+    "party": 177, "romance": 178, "caribbean": 179, "american": 180,
+    "sunset": 181, "royal": 182,
+    "save": 190, "recall": 191,
+    "blue": 193, "green": 194, "red": 195, "white": 196, "magenta": 197,
+}
+LIGHT_COMMAND_NAMES = {code: name for name, code in LIGHT_COMMANDS.items()}
+
+
+def resolve_light_command(name_or_code) -> int:
+    """Map an IntelliBrite command name (``party``, ``blue``, ``color-sync``…) or a
+    raw 0-255 code to its command byte. Names accept ``-``/`` `` for ``_``."""
+    key = str(name_or_code).strip().lower().replace("-", "_").replace(" ", "_")
+    if key in LIGHT_COMMANDS:
+        return LIGHT_COMMANDS[key]
+    try:
+        return int(str(name_or_code), 0) & 0xFF
+    except ValueError as exc:
+        raise ValueError(f"unknown light command: {name_or_code!r}") from exc

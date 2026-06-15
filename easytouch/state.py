@@ -365,6 +365,12 @@ class BusMonitor:
         return {"hour": h, "minute": m, "dow": dow, "day": day, "month": mon,
                 "year": 2000 + yr, "auto_dst": bool(dst)}
 
+    def set_light(self, command) -> int:
+        """Enqueue an IntelliBrite light command; returns the resolved code."""
+        code = C.resolve_light_command(command)
+        self._cmd_q.put(self._et.build_set_light(code))
+        return code
+
     def set_heat(
         self,
         pool_setpoint: int | None = None,

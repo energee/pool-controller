@@ -54,11 +54,13 @@ ENDPOINTS = {
     "GET /heat/pool/<temp>": "set pool setpoint",
     "GET /heat/spa/<temp>": "set spa setpoint",
     "GET /chlorinator/output/<pct>": "set chlorinator output %",
+    "GET /light/<command>": "IntelliBrite light command (party, blue, on, off, ...)",
     "POST /circuit": "{circuit, on}",
     "POST /heat": "{pool_setpoint, spa_setpoint, pool_mode, spa_mode}",
     "POST /schedule": "{id, circuit, start, end, days}",
     "POST /chlorinator": "{output}",
     "POST /datetime": "{iso?} set clock (default now)",
+    "POST /light": "{command}",
 }
 
 
@@ -157,6 +159,8 @@ class PoolHandler(BaseHTTPRequestHandler):
             return self._heat_setpoint(parts[1], parts[2])
         if head == "chlorinator" and len(parts) == 3 and parts[1] == "output":
             return self._chlor_output(parts[2])
+        if head == "light" and len(parts) == 2:
+            return self._set_light(parts[1])
         return self._err(404, f"no such path: /{'/'.join(parts)}")
 
     # --- POST --------------------------------------------------------------
@@ -186,6 +190,8 @@ class PoolHandler(BaseHTTPRequestHandler):
             return self._set_chlor(value)
         if parts == ["datetime"]:
             return self._set_datetime(body)
+        if parts == ["light"]:
+            return self._set_light(body.get("command"))
         return self._err(404, f"no such path: /{'/'.join(parts)}")
 
     # --- control helpers ---------------------------------------------------
@@ -254,6 +260,12 @@ class PoolHandler(BaseHTTPRequestHandler):
         when = dt.datetime.fromisoformat(iso) if iso else None
         res = self.monitor.set_datetime(when)
         self._send(200, {"sent": True, "datetime": res})
+
+    def _set_light(self, command) -> None:
+        if command is None:
+            raise ValueError("body must include 'command'")
+        code = self.monitor.set_light(command)   # raises ValueError on unknown name
+        self._send(200, {"sent": True, "command": command, "code": code})
 
 
 def serve(

@@ -232,6 +232,7 @@ function renderCards(s) {
   cards.push(statusCard(s.status));            // primary
   cards.push(heatCard(s.heat));
   cards.push(circuitsCard(s.status));
+  cards.push(lightsCard());
   cards.push(chlorinatorCard(s.chlorinator));  // secondary
   cards.push(intellichemCard(s.intellichem));
   cards.push(schedulesCard(s.schedules));
@@ -321,6 +322,17 @@ function circuitsCard(st) {
       ' onchange="setCircuit(' + c[0] + ', this.checked)"></label>';
   }).join('');
   return card('Circuits', '<div class="circuits">' + cells + '</div>');
+}
+
+function lightsCard() {
+  // IntelliBrite commands are global to the light group; codes are the documented
+  // reference mapping (unconfirmed on this hardware) -> marked experimental.
+  const cmds = ['on','off','color_sync','color_swim','color_set','party','romance',
+                'caribbean','american','sunset','royal','blue','green','red','white','magenta'];
+  const btns = cmds.map(c =>
+    '<button class="ghost" style="margin:3px" onclick="setLight(\'' + c + '\')">' +
+    esc(c.replace('_',' ')) + '</button>').join('');
+  return card('Lights (IntelliBrite)', '<div>' + btns + '</div>', true);
 }
 
 function pumpsCard(pumps, dt) {
@@ -419,6 +431,12 @@ async function setChlor() {
 async function setClock() {
   hold();
   await postJSON('/datetime', {});
+  afterChange();
+}
+
+async function setLight(cmd) {
+  hold();
+  await postJSON('/light', {command: cmd});
   afterChange();
 }
 

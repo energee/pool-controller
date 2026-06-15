@@ -292,6 +292,16 @@ def test_ingests_software_version():
     assert mon.get_state()["version"]["version"] == "2.080"
 
 
+def test_set_light_enqueues_set_color_frame():
+    mon = BusMonitor("x")
+    stub = StubSerial()
+    mon._et._serial = stub
+    assert mon.set_light("party") == 177
+    mon._poll_once()
+    setc = [p for p in _sent(stub) if p.cfi == C.Action.SET_COLOR]
+    assert setc and setc[-1].data == bytes([177])
+
+
 def test_set_datetime_enqueues_set_datetime_frame():
     import datetime as _dt
     mon = BusMonitor("x")

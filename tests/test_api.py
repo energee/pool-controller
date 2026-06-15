@@ -65,6 +65,11 @@ class FakeMonitor:
         self.calls.append(("datetime", when))
         return {"hour": 11, "minute": 30, "year": 2026}
 
+    def set_light(self, command) -> int:
+        from easytouch import constants as C
+        self.calls.append(("light", command))
+        return C.resolve_light_command(command)
+
     def wait_for(self, predicate, timeout=6.0, interval=0.02):
         deadline = time.monotonic() + timeout
         while time.monotonic() < deadline:
@@ -227,3 +232,18 @@ def test_get_intellichem_subset(server):
     code, body = _get(port, "/intellichem")
     assert code == 200
     assert body["orp"] == 700
+
+
+def test_get_light_command(server):
+    mon, port = server
+    code, body = _get(port, "/light/party")
+    assert code == 200
+    assert body["sent"] is True and body["code"] == 177
+    assert ("light", "party") in mon.calls
+
+
+def test_post_light_unknown_is_400(server):
+    _mon, port = server
+    with pytest.raises(urllib.error.HTTPError) as exc:
+        _post(port, "/light", {"command": "disco"})
+    assert exc.value.code == 400

@@ -202,6 +202,27 @@ class EasyTouch:
             self.send(pkt)  # not there yet, nudge again
         raise TimeoutError(f"circuit {circuit} did not reach {'on' if on else 'off'}")
 
+    # --- lights (IntelliBrite) ---------------------------------------------
+    def build_set_light(self, command: int) -> Packet:
+        """Build a Set-Color / IntelliBrite (CFI 96) command (one command byte).
+
+        ``command`` is the raw light-command code (see
+        :data:`constants.LIGHT_COMMANDS`). The command is global to the light group.
+        """
+        return self._command(C.Action.SET_COLOR, command & 0xFF)
+
+    def set_light(self, command) -> int:
+        """Send an IntelliBrite light command and return the resolved code.
+
+        ``command`` is a name (``party``, ``blue``, ``on``…) or a raw code. The
+        controller broadcasts no dedicated light status, so this fires and returns
+        (there is nothing to confirm against). The command-code table is the
+        documented reference mapping, not yet confirmed on this hardware.
+        """
+        code = C.resolve_light_command(command)
+        self.send(self.build_set_light(code))
+        return code
+
     # --- heat / temperature ------------------------------------------------
     def build_get_heat(self) -> Packet:
         """Build a Get-Heat (CFI 200) request to the main controller."""

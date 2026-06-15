@@ -167,6 +167,23 @@ def test_dispatch_routes_intellichem():
     assert isinstance(decode(pkt), IntelliChem)
 
 
+def test_resolve_light_command_names_and_codes():
+    import pytest
+    assert C.resolve_light_command("party") == 177
+    assert C.resolve_light_command("color-sync") == 128
+    assert C.resolve_light_command("blue") == 193
+    assert C.resolve_light_command(200) == 200          # raw code passes through
+    with pytest.raises(ValueError):
+        C.resolve_light_command("disco")
+
+
+def test_build_set_light_frame():
+    from easytouch.controller import EasyTouch
+    et = EasyTouch(port="/dev/null")
+    pkt = decode_frame(et.build_set_light(177).to_bytes(idle=2))   # checksum round-trip
+    assert pkt.cfi == C.Action.SET_COLOR and pkt.data == bytes([177])
+
+
 def test_dispatch_picks_controller_status():
     s = decode(decode_frame(REAL_STATUS))
     assert isinstance(s, ControllerStatus)
