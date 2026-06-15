@@ -42,13 +42,13 @@ from .web import PAGE
 CONFIRM_TIMEOUT = 6.0
 
 # Subsets of get_state() exposed as their own GET endpoints.
-_SUBSETS = ("status", "heat", "datetime", "pumps", "schedules", "chlorinator", "version", "raw")
+_SUBSETS = ("status", "heat", "datetime", "pumps", "schedules", "chlorinator", "version", "valves", "raw")
 
 ENDPOINTS = {
     "GET /": "the dashboard (HTML)",
     "GET /api": "this endpoint index (JSON)",
     "GET /state": "full cached snapshot",
-    "GET /{status,heat,datetime,pumps,schedules,chlorinator,version,raw}": "decoded subsets",
+    "GET /{status,heat,datetime,pumps,schedules,chlorinator,version,valves,raw}": "decoded subsets",
     "GET /circuit/<name-or-num>/<on|off>": "set a circuit",
     "GET /heat/pool/<temp>": "set pool setpoint",
     "GET /heat/spa/<temp>": "set spa setpoint",

@@ -262,6 +262,16 @@ def test_set_chlorinator_output_enqueues_raw_ic_frame():
     assert mon.get_state()["chlorinator"]["output_percent"] == 45   # optimistic cache
 
 
+def test_ingests_valve_status():
+    from easytouch.protocol import Packet
+    mon = BusMonitor("x")
+    f = Packet(sub=0x27, dst=0x0F, src=C.Address.MAIN, cfi=C.Action.VALVE_STATUS,
+               data=bytes([0x00, 0x01, 0x02])).to_bytes(idle=2)
+    mon._et._serial = StubSerial(f)
+    mon._poll_once()
+    assert mon.get_state()["valves"]["valves"] == [0, 1, 2]
+
+
 def test_ingests_software_version():
     from easytouch.protocol import Packet
     mon = BusMonitor("x")

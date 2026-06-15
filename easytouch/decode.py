@@ -171,6 +171,21 @@ class SoftwareVersion:
     raw: str            # hex of the full payload
 
 
+@dataclass
+class ValveStatus:
+    """Decoded ``Action.VALVE_STATUS`` (CFI 29) — valve actuator assignments.
+
+    .. note::
+       Per-byte meanings are **not confirmed** against this hardware (no CFI 29
+       frame captured). ``valves`` is the raw per-position payload and ``raw`` the
+       full payload hex — surfaced typed (instead of only under ``/raw``) so a live
+       capture can be matched against it later.
+    """
+
+    valves: list[int]
+    raw: str
+
+
 # --- Schedules --------------------------------------------------------------
 # Day-of-week bitmask, per the nodejs-poolController convention. The raw byte is
 # always exposed alongside the decoded names in case a controller orders the
@@ -348,6 +363,11 @@ def decode_version(pkt: Packet) -> SoftwareVersion:
                            raw=bytes(pkt.data).hex())
 
 
+def decode_valve(pkt: Packet) -> ValveStatus:
+    data = bytes(pkt.data)
+    return ValveStatus(valves=list(data), raw=data.hex())
+
+
 def decode(pkt: Packet):
     """Dispatch a packet to the most specific decoder available.
 
@@ -365,4 +385,6 @@ def decode(pkt: Packet):
         return decode_pump_status(pkt)
     if pkt.cfi == C.Action.SW_VERSION and pkt.src == C.Address.MAIN:
         return decode_version(pkt)
+    if pkt.cfi == C.Action.VALVE_STATUS and pkt.src == C.Address.MAIN:
+        return decode_valve(pkt)
     return Unknown(packet=pkt, description=str(pkt))

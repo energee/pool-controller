@@ -33,6 +33,7 @@ class FakeMonitor:
                 "pumps": {}, "schedules": {},
                 "chlorinator": {"salt_ppm": 2750, "output_percent": 30, "status_flags": 128},
                 "version": {"version": "2.080", "major": 2, "minor": 80, "raw": "0250"},
+                "valves": {"valves": [0, 1, 2], "raw": "000102"},
                 "raw": {2: "00ffa5"}}
 
     def set_circuit(self, n: int, on: bool) -> None:
@@ -211,3 +212,10 @@ def test_get_version_subset(server):
     code, body = _get(port, "/version")
     assert code == 200
     assert body["version"] == "2.080"
+
+
+def test_get_valves_subset(server):
+    _mon, port = server
+    code, body = _get(port, "/valves")
+    assert code == 200
+    assert body["valves"] == [0, 1, 2]

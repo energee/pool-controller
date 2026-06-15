@@ -130,6 +130,22 @@ def test_dispatch_routes_version():
     assert isinstance(decode(pkt), SoftwareVersion)
 
 
+def test_decode_valve_status():
+    from easytouch.decode import ValveStatus, decode_valve
+    pkt = Packet(sub=0x27, dst=0x0F, src=C.Address.MAIN, cfi=C.Action.VALVE_STATUS,
+                 data=bytes([0x00, 0x01, 0x02, 0x03]))
+    v = decode_valve(pkt)
+    assert isinstance(v, ValveStatus)
+    assert v.valves == [0, 1, 2, 3] and v.raw == "00010203"
+
+
+def test_dispatch_routes_valve():
+    from easytouch.decode import ValveStatus
+    pkt = Packet(sub=0x27, dst=0x0F, src=C.Address.MAIN, cfi=C.Action.VALVE_STATUS,
+                 data=bytes([0x00, 0x01]))
+    assert isinstance(decode(pkt), ValveStatus)
+
+
 def test_dispatch_picks_controller_status():
     s = decode(decode_frame(REAL_STATUS))
     assert isinstance(s, ControllerStatus)
