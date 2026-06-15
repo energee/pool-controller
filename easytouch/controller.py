@@ -27,6 +27,7 @@ from .decode import (
     decode_heat_status,
     decode_schedule,
     encode_days,
+    merge_heat_mode,
 )
 from .protocol import Packet
 from .reader import PacketReader
@@ -121,12 +122,24 @@ class EasyTouch:
         while time.monotonic() < deadline:
             yield from self._feed(self.serial.read(read_size))
 
-    def snapshot(self, timeout: float = 10.0) -> ControllerStatus:
-        """Wait for the next controller-status broadcast and return it decoded."""
+    def _await_main(self, cfi: int, decode_fn, timeout: float):
+        """Yield decoded packets of one CFI from the main controller until ``timeout``.
+
+        Centralizes the ``cfi``+``src == MAIN`` filter and the deadline shared by
+        every request/confirm loop; the caller decides what to do with each
+        decoded value (return it, re-poll, nudge) and raises ``TimeoutError`` if
+        the generator runs dry.
+        """
         deadline = time.monotonic() + timeout
         for pkt in self._iter_until(deadline):
-            if pkt.cfi == C.Action.CONTROLLER_STATUS and pkt.src == C.Address.MAIN:
-                return decode_controller_status(pkt)
+            if pkt.cfi == cfi and pkt.src == C.Address.MAIN:
+                yield decode_fn(pkt)
+
+    def snapshot(self, timeout: float = 10.0) -> ControllerStatus:
+        """Wait for the next controller-status broadcast and return it decoded."""
+        for status in self._await_main(C.Action.CONTROLLER_STATUS,
+                                       decode_controller_status, timeout):
+            return status
         raise TimeoutError(f"no controller status within {timeout}s")
 
     # --- transmit ----------------------------------------------------------
@@ -135,15 +148,15 @@ class EasyTouch:
         self.serial.write(pkt.to_bytes(idle=idle))
         self.serial.flush()
 
+    def _command(self, cfi: int, *data: int) -> Packet:
+        """Build a command/request packet from us (``self.address``) to the main
+        controller, stamped with the learned protocol sub-version."""
+        return Packet(sub=self.controller_sub, dst=C.Address.MAIN,
+                      src=self.address, cfi=cfi, data=bytes(data))
+
     def build_set_circuit(self, circuit: int, on: bool) -> Packet:
         """Build a Set-Circuit (CFI 134) command packet to the main controller."""
-        return Packet(
-            sub=self.controller_sub,
-            dst=C.Address.MAIN,
-            src=self.address,
-            cfi=C.Action.SET_CIRCUIT,
-            data=bytes([circuit, 1 if on else 0]),
-        )
+        return self._command(C.Action.SET_CIRCUIT, circuit, 1 if on else 0)
 
     def set_circuit(
         self,
@@ -165,29 +178,88 @@ class EasyTouch:
         if not confirm:
             return None
 
-        deadline = time.monotonic() + timeout
         attempts = 0
-        for raw in self._iter_until(deadline):
-            if raw.cfi == C.Action.CONTROLLER_STATUS and raw.src == C.Address.MAIN:
-                status = decode_controller_status(raw)
-                if (circuit in status.circuits_on) == on:
-                    return status
-                attempts += 1
-                if attempts > retries:
-                    return status
-                self.send(pkt)  # not there yet, nudge again
+        for status in self._await_main(C.Action.CONTROLLER_STATUS,
+                                       decode_controller_status, timeout):
+            if (circuit in status.circuits_on) == on:
+                return status
+            attempts += 1
+            if attempts > retries:
+                return status
+            self.send(pkt)  # not there yet, nudge again
         raise TimeoutError(f"circuit {circuit} did not reach {'on' if on else 'off'}")
 
+    # --- heat / temperature ------------------------------------------------
+    def build_get_heat(self) -> Packet:
+        """Build a Get-Heat (CFI 200) request to the main controller."""
+        return self._command(C.Action.GET_HEAT, 0)
+
+    def get_heat(self, timeout: float = 6.0, request: bool = True) -> HeatStatus:
+        """Request and return the controller's heat/temperature status (CFI 8).
+
+        The TCP-bridged bus is sparse, so by default this *requests* a Heat-Status
+        rather than waiting passively. Pass ``request=False`` to only listen.
+
+        On a fresh connection the controller's sub-version is not yet known, and a
+        request stamped with the default sub is ignored; so the request is re-issued
+        whenever a controller packet teaches us a newer sub (cf. :meth:`set_circuit`).
+        """
+        requested_sub = self.controller_sub
+        if request:
+            self.send(self.build_get_heat())
+        deadline = time.monotonic() + timeout
+        for pkt in self._iter_until(deadline):
+            if pkt.cfi == C.Action.HEAT_STATUS and pkt.src == C.Address.MAIN:
+                return decode_heat_status(pkt)
+            if request and self.controller_sub != requested_sub:
+                requested_sub = self.controller_sub
+                self.send(self.build_get_heat())  # re-ask with the learned sub
+        raise TimeoutError(f"no heat status within {timeout}s")
+
+    def build_set_heat(self, pool_sp: int, spa_sp: int, heat_mode: int) -> Packet:
+        """Build a Set-Heat (CFI 136) command: ``[poolSP, spaSP, heatMode, 0]``."""
+        return self._command(C.Action.SET_HEAT, pool_sp & 0xFF, spa_sp & 0xFF,
+                             heat_mode & 0xFF, 0)
+
+    def set_heat(
+        self,
+        pool_setpoint: int | None = None,
+        spa_setpoint: int | None = None,
+        pool_mode: int | None = None,
+        spa_mode: int | None = None,
+        confirm: bool = True,
+        timeout: float = 8.0,
+    ) -> HeatStatus | None:
+        """Change heat set-points and/or modes (read-modify-write).
+
+        Set-Heat carries *all* four values at once, so any field left ``None`` is
+        preserved by first reading the current heat status. ``pool_mode``/
+        ``spa_mode`` are 0-3 (Off/Heater/Solar Pref/Solar Only) packed into the
+        shared heat-mode byte. With ``confirm`` set, waits for the controller to
+        echo the requested values back and returns that status.
+        """
+        cur = self.get_heat(timeout=timeout)          # read-modify-write
+        psp = cur.pool_setpoint if pool_setpoint is None else pool_setpoint
+        ssp = cur.spa_setpoint if spa_setpoint is None else spa_setpoint
+        mode = merge_heat_mode(cur.heat_mode_raw, pool_mode, spa_mode)
+        self.send(self.build_set_heat(psp, ssp, mode))
+        if not confirm:
+            return None
+        for hs in self._await_main(C.Action.HEAT_STATUS, decode_heat_status, timeout):
+            if (hs.pool_setpoint, hs.spa_setpoint, hs.heat_mode_raw) == (psp, ssp, mode):
+                return hs
+            self.send(self.build_get_heat())  # not there yet, re-poll
+        raise TimeoutError("heat set not confirmed")
+
     # --- schedules ---------------------------------------------------------
-    def build_get_schedules(self, schedule_id: int = 0) -> Packet:
-        """Build a Get-Schedule (CFI 209) request (``schedule_id=0`` = all)."""
-        return Packet(
-            sub=self.controller_sub,
-            dst=C.Address.MAIN,
-            src=self.address,
-            cfi=C.Action.GET_SCHEDULE,
-            data=bytes([schedule_id]),
-        )
+    def build_get_schedules(self, schedule_id: int = 1) -> Packet:
+        """Build a Get-Schedule (CFI 209) request for one slot.
+
+        Note: this controller does **not** treat ``schedule_id=0`` as "all" — slot
+        0 always answers empty. Real schedules occupy slots ``1..12`` and must be
+        requested individually (see :meth:`get_schedules`).
+        """
+        return self._command(C.Action.GET_SCHEDULE, schedule_id)
 
     def get_schedules(
         self,
@@ -195,23 +267,48 @@ class EasyTouch:
         timeout: float = 6.0,
         request: bool = True,
     ) -> list[Schedule]:
-        """Collect schedule entries broadcast by the controller.
+        """Collect the controller's stored schedules, sorted by ID.
 
-        Sends a Get-Schedule request (unless ``request=False``) then gathers
-        ``Action.SCHEDULE`` packets until ``count`` distinct IDs are seen or
-        ``timeout`` elapses. Returns whatever arrived, sorted by ID — an empty
-        list if the controller serves none (e.g. a status-only simulator).
+        Two quirks of this controller drive the sequence here:
+
+        * A Get-Schedule for slot ``0`` returns a single empty placeholder — it is
+          **not** an "all schedules" query — so real schedules in slots ``1..count``
+          must be polled one id at a time.
+        * Requests stamped with the default sub-version are silently ignored, so
+          (when ``request``) we first wait for a MAIN frame to learn the real sub,
+          then poll each slot.
+
+        With ``request=False`` it instead passively gathers broadcast schedule
+        frames until ``count`` distinct IDs are seen or ``timeout`` elapses.
+        Returns an empty list if the bus serves none (e.g. a status-only sim).
         """
-        if request:
-            self.send(self.build_get_schedules())
         schedules: dict[int, Schedule] = {}
         deadline = time.monotonic() + timeout
+        if not request:
+            for pkt in self._iter_until(deadline):
+                if pkt.cfi == C.Action.SCHEDULE and pkt.src == C.Address.MAIN:
+                    s = decode_schedule(pkt)
+                    schedules[s.id] = s
+                    if len(schedules) >= count:
+                        break
+            return [schedules[k] for k in sorted(schedules)]
+        # Prime: a MAIN frame teaches EasyTouch._feed the controller's real sub so
+        # the per-slot requests below are honored.
         for pkt in self._iter_until(deadline):
-            if pkt.cfi == C.Action.SCHEDULE and pkt.src == C.Address.MAIN:
-                s = decode_schedule(pkt)
-                schedules[s.id] = s
-                if len(schedules) >= count:
-                    break
+            if pkt.src == C.Address.MAIN:
+                break
+        # Poll each slot individually; the controller answers only for the id asked.
+        for sid in range(1, count + 1):
+            if time.monotonic() >= deadline:
+                break
+            self.send(self.build_get_schedules(sid))
+            slot_deadline = min(deadline, time.monotonic() + 1.0)
+            for pkt in self._iter_until(slot_deadline):
+                if pkt.cfi == C.Action.SCHEDULE and pkt.src == C.Address.MAIN:
+                    s = decode_schedule(pkt)
+                    schedules[s.id] = s
+                    if s.id == sid:
+                        break
         return [schedules[k] for k in sorted(schedules)]
 
     def build_set_schedule(
@@ -220,13 +317,8 @@ class EasyTouch:
         """Build a Set-Schedule (CFI 145) command from HH:MM strings + day mask."""
         sh, sm = _parse_hhmm(start)
         eh, em = _parse_hhmm(end)
-        return Packet(
-            sub=self.controller_sub,
-            dst=C.Address.MAIN,
-            src=self.address,
-            cfi=C.Action.SET_SCHEDULE,
-            data=bytes([schedule_id, circuit, sh, sm, eh, em, days_mask & 0xFF]),
-        )
+        return self._command(C.Action.SET_SCHEDULE, schedule_id, circuit,
+                             sh, sm, eh, em, days_mask & 0xFF)
 
     def set_schedule(
         self,
@@ -248,15 +340,10 @@ class EasyTouch:
         self.send(pkt)
         if not confirm:
             return None
-        deadline = time.monotonic() + timeout
-        for raw in self.packets():
-            if raw.cfi == C.Action.SCHEDULE and raw.src == C.Address.MAIN:
-                s = decode_schedule(raw)
-                if s.id == schedule_id:
-                    return s
-            if time.monotonic() > deadline:
-                raise TimeoutError(f"schedule {schedule_id} was not confirmed")
-        return None
+        for s in self._await_main(C.Action.SCHEDULE, decode_schedule, timeout):
+            if s.id == schedule_id:
+                return s
+        raise TimeoutError(f"schedule {schedule_id} was not confirmed")
 
 
 def _parse_hhmm(text: str) -> tuple[int, int]:

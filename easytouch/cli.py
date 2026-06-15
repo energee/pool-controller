@@ -10,6 +10,9 @@ Subcommands::
     easytouch off <circ>   turn a circuit off
     easytouch schedules    view stored schedules
     easytouch set-schedule write a schedule slot
+    easytouch heat         print heat/temperature status
+    easytouch set-heat     set heat set-points and/or modes
+    easytouch serve        run the HTTP JSON API (owns the bus)
     easytouch raw          dump raw hex frames (debugging)
 
 Run ``python -m easytouch --help`` for the full option list. ``--port`` defaults
@@ -137,6 +140,67 @@ def cmd_set_schedule(et: EasyTouch, args) -> int:
     return 0
 
 
+# Heat-mode name → code (0-3). The shared heat byte packs pool (bits 0-1) and
+# spa (bits 2-3) modes; CLI accepts friendly names or the raw 0-3.
+_HEAT_MODE_ALIASES = {
+    "off": 0, "0": 0,
+    "heater": 1, "heat": 1, "1": 1,
+    "solar": 2, "solar pref": 2, "solarpref": 2, "2": 2,
+    "solar only": 3, "solaronly": 3, "3": 3,
+}
+
+
+def resolve_heat_mode(token) -> int:
+    """Map a heat-mode name (off/heater/solar/solar-only) or 0-3 to its code."""
+    key = str(token).strip().lower().replace("-", " ").replace("_", " ")
+    if key in _HEAT_MODE_ALIASES:
+        return _HEAT_MODE_ALIASES[key]
+    if key.replace(" ", "") in _HEAT_MODE_ALIASES:
+        return _HEAT_MODE_ALIASES[key.replace(" ", "")]
+    raise ValueError(f"unknown heat mode: {token!r} (use off/heater/solar/solar-only or 0-3)")
+
+
+def _print_heat(hs) -> None:
+    print(f"  Pool temp     : {hs.pool_temp}°")
+    print(f"  Spa temp      : {hs.spa_temp}°")
+    print(f"  Air temp      : {hs.air_temp}°")
+    print(f"  Pool setpoint : {hs.pool_setpoint}°  (mode: {hs.pool_heat_mode})")
+    print(f"  Spa setpoint  : {hs.spa_setpoint}°  (mode: {hs.spa_heat_mode})")
+
+
+def cmd_heat(et: EasyTouch, args) -> int:
+    hs = et.get_heat(timeout=args.timeout)
+    print(f"EasyTouch heat @ {args.port}:")
+    _print_heat(hs)
+    return 0
+
+
+def cmd_set_heat(et: EasyTouch, args) -> int:
+    pool_mode = resolve_heat_mode(args.pool_mode) if args.pool_mode is not None else None
+    spa_mode = resolve_heat_mode(args.spa_mode) if args.spa_mode is not None else None
+    if args.pool is None and args.spa is None and pool_mode is None and spa_mode is None:
+        print("nothing to set; pass --pool/--spa/--pool-mode/--spa-mode", file=sys.stderr)
+        return 2
+    hs = et.set_heat(pool_setpoint=args.pool, spa_setpoint=args.spa,
+                     pool_mode=pool_mode, spa_mode=spa_mode,
+                     confirm=not args.no_confirm, timeout=args.timeout)
+    if hs is None:
+        print("Set-Heat sent (not confirmed).")
+        return 0
+    _print_heat(hs)
+    print("Confirmed.")
+    return 0
+
+
+def cmd_serve(args) -> int:
+    """Run the HTTP API. Unlike other commands this owns the bus via a BusMonitor,
+    so it must NOT be wrapped in the shared per-request EasyTouch connection."""
+    from .api import serve
+    serve(port=args.port, baud=args.baud, address=args.address,
+          http_host=args.http_host, http_port=args.http_port)
+    return 0
+
+
 def _set(et: EasyTouch, args, on: bool) -> int:
     circuit = resolve_circuit(args.circuit)
     label = C.circuit_label(circuit)
@@ -206,11 +270,40 @@ def build_parser() -> argparse.ArgumentParser:
     ss.add_argument("--no-confirm", action="store_true", help="fire and forget")
     ss.set_defaults(func=cmd_set_schedule)
 
+    hp = sub.add_parser("heat", help="print heat/temperature status")
+    hp.add_argument("--timeout", type=float, default=8.0)
+    hp.set_defaults(func=cmd_heat)
+
+    sh = sub.add_parser("set-heat", help="set heat set-points and/or modes")
+    sh.add_argument("--pool", type=int, help="pool set-point in degrees")
+    sh.add_argument("--spa", type=int, help="spa set-point in degrees")
+    sh.add_argument("--pool-mode", help="pool heat mode (off/heater/solar/solar-only or 0-3)")
+    sh.add_argument("--spa-mode", help="spa heat mode (off/heater/solar/solar-only or 0-3)")
+    sh.add_argument("--timeout", type=float, default=8.0)
+    sh.add_argument("--no-confirm", action="store_true", help="fire and forget")
+    sh.set_defaults(func=cmd_set_heat)
+
+    sv = sub.add_parser("serve", help="run the HTTP JSON API (owns the bus)")
+    sv.add_argument("--http-host", default="0.0.0.0", help="HTTP bind host (default 0.0.0.0)")
+    sv.add_argument("--http-port", type=int, default=8080, help="HTTP port (default 8080)")
+    sv.set_defaults(func=cmd_serve)
+
     return p
 
 
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
+    # `serve` owns the bus through a BusMonitor for its whole lifetime, so it must
+    # not open the shared per-request EasyTouch connection the other commands use.
+    if args.command == "serve":
+        try:
+            return cmd_serve(args)
+        except KeyboardInterrupt:
+            print()
+            return 130
+        except (OSError, ValueError) as exc:
+            print(f"error: {exc}", file=sys.stderr)
+            return 1
     try:
         with EasyTouch(port=args.port, baud=args.baud, address=args.address) as et:
             return args.func(et, args)

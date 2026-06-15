@@ -68,6 +68,3 @@ class PacketReader:
             else:
                 # Bad checksum: skip this marker and resync on the next one.
                 del buf[: a5]
-
-    def reset(self) -> None:
-        self._buf.clear()

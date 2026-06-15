@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import pytest
 
-from easytouch.protocol import ChecksumError, Packet, checksum, decode
+from easytouch.protocol import ChecksumError, Packet, checksum, parse_frame
 from easytouch.reader import PacketReader
 
 # A real controller-status (CFI 2) frame captured from the bus, including the
@@ -24,7 +24,7 @@ def test_checksum_matches_trailing_bytes():
 
 
 def test_decode_real_frame_header():
-    pkt = decode(REAL_STATUS)
+    pkt = parse_frame(REAL_STATUS)
     assert pkt.sub == 0x27
     assert pkt.dst == 0x0F            # broadcast
     assert pkt.src == 0x10            # main controller
@@ -33,7 +33,7 @@ def test_decode_real_frame_header():
 
 
 def test_roundtrip_to_bytes():
-    pkt = decode(REAL_STATUS)
+    pkt = parse_frame(REAL_STATUS)
     # Re-encode with the same 00FF start and 0 leading idles; body+checksum must match.
     reencoded = pkt.to_bytes(idle=0)
     assert reencoded == REAL_STATUS
@@ -43,14 +43,14 @@ def test_decode_rejects_bad_checksum():
     corrupt = bytearray(REAL_STATUS)
     corrupt[-1] ^= 0xFF
     with pytest.raises(ChecksumError):
-        decode(bytes(corrupt))
+        parse_frame(bytes(corrupt))
 
 
 def test_set_circuit_frame_checksum_is_valid():
     pkt = Packet(sub=0x01, dst=0x10, src=0x20, cfi=134, data=bytes([6, 1]))
     frame = pkt.to_bytes(idle=2)
     # Round-trips cleanly through the decoder => checksum is correct.
-    again = decode(frame)
+    again = parse_frame(frame)
     assert again.cfi == 134
     assert again.data == bytes([6, 1])
 

@@ -20,7 +20,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-from .constants import action_name, address_name
+from .constants import action_name, address_name, is_pump
 
 # Frame markers.
 IDLE = 0xFF                 # idle/preamble byte
@@ -61,16 +61,16 @@ class Packet:
     @property
     def is_pump(self) -> bool:
         """True if either endpoint is a pump (CFI semantics differ for pumps)."""
-        return 0x60 <= self.src <= 0x6F or 0x60 <= self.dst <= 0x6F
+        return is_pump(self.src) or is_pump(self.dst)
 
     def body(self) -> bytes:
         """The checksummed body: header + data (no preamble, no checksum)."""
         return bytes([A5, self.sub, self.dst, self.src, self.cfi, self.length]) + self.data
 
-    def body_byte(self, index: int, default: int = 0) -> int:
-        """Return body byte at a spec offset (0 == 0xA5). Safe past the end."""
+    def body_byte(self, index: int) -> int:
+        """Return body byte at a spec offset (0 == 0xA5); ``0`` past the end."""
         b = self.body()
-        return b[index] if index < len(b) else default
+        return b[index] if index < len(b) else 0
 
     def to_bytes(self, idle: int = 2) -> bytes:
         """Serialize to the full on-wire frame, prefixed by ``idle`` 0xFF bytes."""
@@ -90,12 +90,13 @@ class ChecksumError(ValueError):
     """Raised when a frame's trailing checksum does not match its body."""
 
 
-def decode(frame: bytes) -> Packet:
-    """Decode a single A5 frame.
+def parse_frame(frame: bytes) -> Packet:
+    """Decode a single A5 frame into a :class:`Packet`.
 
     ``frame`` may include leading idle/preamble bytes; everything before the
     first ``0xA5`` is ignored. Raises :class:`ValueError`/:class:`ChecksumError`
-    on malformed input.
+    on malformed input. (Named ``parse_frame`` to distinguish it from
+    :func:`easytouch.decode.decode`, which turns a :class:`Packet` into state.)
     """
     a5 = frame.find(A5)
     if a5 < 0:

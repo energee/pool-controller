@@ -44,6 +44,21 @@ Anything that presents the bus as a serial port works the same way: a real
 USB RS-485 adapter (`/dev/ttyUSB0`), the socat PTY above, etc. The bus runs at
 **9600 baud, 8N1**.
 
+### Reaching the bus over the network (no local PTY)
+
+If the RS-485 adapter lives on another machine, export it as a raw TCP stream and
+point `--port` at it directly — no local `socat`/PTY needed:
+
+```bash
+# on the adapter host
+socat TCP-LISTEN:4000,reuseaddr /dev/cu.usbserial-XXXX,raw,echo=0,b9600
+
+# from anywhere on the LAN
+python -m easytouch --port socket://192.168.4.70:4000 status
+```
+
+`--port` accepts `socket://HOST:PORT` (raw TCP) or `tcp://HOST:PORT` (an alias).
+
 ## CLI
 
 ```bash
@@ -65,6 +80,15 @@ python -m easytouch on 6            # circuit 6 == pool by default
 python -m easytouch schedules
 python -m easytouch set-schedule --id 1 --circuit pool --start 08:00 --end 10:30 --days mon,wed,fri
 python -m easytouch set-schedule --id 2 --circuit spa  --start 18:00 --end 21:00 --days weekends
+
+# Heat / temperature set-points and modes
+python -m easytouch heat                         # current temps + setpoints
+python -m easytouch set-heat --pool 85           # raise pool setpoint to 85
+python -m easytouch set-heat --spa 102 --spa-mode heater
+python -m easytouch set-heat --pool-mode off     # modes: off/heater/solar/solar-only (or 0-3)
+
+# Serve the HTTP JSON API (owns the bus; see below)
+python -m easytouch --port socket://192.168.4.70:4000 serve --http-port 8080
 
 # Raw hex frames for debugging
 python -m easytouch raw --seconds 5
@@ -98,13 +122,37 @@ with EasyTouch("/tmp/vserial") as et:
 
     et.set_circuit(6, on=True)             # turn the pool circuit on (confirmed)
 
+    heat = et.get_heat()                   # temps + set-points (CFI 8)
+    print(heat.pool_setpoint, heat.spa_setpoint, heat.pool_heat_mode)
+    et.set_heat(pool_setpoint=85)          # read-modify-write; other fields preserved
+
     for pkt in et.packets():               # stream every decoded packet
         print(pkt)
 ```
 
-Decoders return typed dataclasses (`ControllerStatus`, `DateTime`, `PumpStatus`,
-`Schedule`) or an `Unknown` wrapper for frames without a dedicated decoder, so
-monitoring never silently drops traffic.
+Decoders return typed dataclasses (`ControllerStatus`, `DateTime`, `HeatStatus`,
+`PumpStatus`, `Schedule`) or an `Unknown` wrapper for frames without a dedicated
+decoder, so monitoring never silently drops traffic.
+
+Decoded fields per type (all surface in the HTTP API's JSON via `dataclasses.asdict`):
+
+- **`ControllerStatus`** — `clock`, `circuits_on`/`circuit_names`, `pool_temp`,
+  `spa_temp`, `air_temp`, `solar_temp`, `heater_on`, `pool_heat_mode`,
+  `spa_heat_mode`, `celsius`, `service`, `freeze`, plus `valve` (valve-actuator
+  state), `delay` (0 = none, else the circuit currently in its valve delay), and
+  `auto_dst` (panel auto-adjusts daylight saving time).
+- **`HeatStatus`** — `pool_temp`, `spa_temp`, `air_temp`, `pool_setpoint`,
+  `spa_setpoint`, `pool_heat_mode`/`spa_heat_mode`, `heat_mode_raw`, plus
+  `cool_setpoint` (chill set-point for heat-pump/UltraTemp; reads `100` when no
+  cooling-capable heater is configured).
+- **`PumpStatus`** — `pump`, `cmd`, `mode`, `drive_state`, `watts`, `rpm`, `gpm`,
+  `ppc`, `error`, `run_minutes`. **Note:** the previously mislabeled fields were
+  corrected — what was `run_state` is now `mode`, and the old `mode` is now
+  `drive_state`. Consumers of the `/state` → `pumps` JSON must update those keys.
+
+`set_heat()` carries all four heat values (pool/spa set-points and modes) in one
+frame, so it first reads the current `HeatStatus` and preserves any field you
+leave at `None`.
 
 ## Schedules
 
@@ -136,6 +184,83 @@ with EasyTouch("/tmp/vserial") as et:
 > confirmed against it. The encode/decode path is covered by unit tests
 > (`tests/test_schedule.py`) and is correct for real EasyTouch hardware.
 
+## HTTP JSON API
+
+`serve` exposes **all** controller data and controls over a dependency-free
+`http.server` JSON API on the LAN (no auth — keep it on a trusted network):
+
+```bash
+python -m easytouch --port socket://192.168.4.70:4000 serve --http-host 0.0.0.0 --http-port 8080
+```
+
+### Web dashboard
+
+`serve` also hosts a **single-page dashboard** at the root URL — open
+`http://<host>:8080/` in a browser. It's one self-contained HTML page (inline
+CSS/JS, no external assets, no build step) that polls `GET /state` every ~3s and
+renders a card per section — controller status, heat/setpoints, **salt /
+chlorinator**, circuits, pumps, schedules, and the raw/undecoded frames. Controls
+are editable inline: circuit on/off toggles, heat setpoints + modes, and schedule
+slots (schedule writes are still unconfirmed on this controller, so that card is
+labelled *experimental*). Re-rendering pauses while a control is focused or was
+just changed, so inputs never jump under you. The JSON endpoint index moved to
+`GET /api`; the page is a pure client of the data routes below.
+
+### Salt / chlorinator
+
+Salt level does **not** ride the A5 protocol — the IntelliChlor salt cell uses its
+own DLE-framed messages on the same wire (`10 02 <dest> <cmd> <data…> <chk> 10
+03`). `easytouch` runs a second framer (`easytouch/intellichlor.py`) over the raw
+byte stream to decode it, so salt **ppm** and generation **output %** appear under
+`GET /chlorinator` and in `/state`. Salt is reported in units of 50 ppm (the
+on-wire byte × 50); the status byte is exposed raw, since its bit meanings aren't
+reliably reverse-engineered. Verified live against the controller at **2750 ppm**.
+
+### Architecture
+
+The RS-485 bus is half-duplex with a **single** usable connection, so the server
+must not open the port per request. One background thread (`BusMonitor`) owns the
+connection, continuously decodes traffic into a cached snapshot, periodically
+*requests* the sparse packet types (heat, schedules), and drains a command queue
+so writes from any HTTP thread are serialized onto that single owner:
+
+```
+HTTP handlers ──read──► cached state ◄──updates── BusMonitor thread ──► serial/TCP
+              └──enqueue command──► queue ──drained by──┘   (single bus owner)
+```
+
+### Endpoints
+
+| Method | Path | Action |
+|--------|------|--------|
+| GET  | `/` | the web dashboard (HTML) |
+| GET  | `/api` | endpoint index (JSON) |
+| GET  | `/state` | full cached snapshot (decoded + raw + metadata) |
+| GET  | `/status` `/heat` `/datetime` `/pumps` `/schedules` `/chlorinator` `/raw` | subsets of `/state` |
+| GET  | `/circuit/<name-or-num>/<on\|off>` | turn a circuit on/off |
+| GET  | `/heat/pool/<temp>` `/heat/spa/<temp>` | set a setpoint |
+| POST | `/circuit` | `{"circuit": "pool", "on": true}` |
+| POST | `/heat` | `{"pool_setpoint": 85, "spa_setpoint": 102, "pool_mode": 1, "spa_mode": 1}` |
+| POST | `/schedule` | `{"id": 1, "circuit": "pool", "start": "08:00", "end": "10:30", "days": "mon,wed,fri"}` |
+
+Control endpoints enqueue the command, then poll the cache for confirmation:
+they return **`200`** with the new state once the controller echoes the change,
+or **`202 accepted`** if it hasn't within the confirm window.
+
+```bash
+curl -s localhost:8080/state | python -m json.tool
+curl -s localhost:8080/heat
+curl -s localhost:8080/heat/pool/85          # then check it changed; set back to 84
+curl -s localhost:8080/circuit/pool/off
+curl -s -XPOST localhost:8080/heat -d '{"spa_setpoint": 102, "spa_mode": 1}'
+```
+
+> **Coverage:** the fully **decoded** types are status, date/time, heat, pump,
+> schedule, and the IntelliChlor **salt level / output %** (see *Salt / chlorinator*
+> above). Everything else the controller emits (valves, IntelliChem, custom names,
+> software version, …) is exposed as **raw hex** under `/raw` (keyed by CFI) until a
+> dedicated decoder is added — so it's available, but not mistaken for full decode.
+
 ## Protocol summary
 
 A5 frame on the wire:
@@ -164,7 +289,11 @@ notes.
 | `easytouch/protocol.py`   | `Packet`, checksum, single-frame encode/decode      |
 | `easytouch/reader.py`     | `PacketReader` — streaming framer with resync        |
 | `easytouch/decode.py`     | High-level decoders → typed status dataclasses      |
-| `easytouch/controller.py` | `EasyTouch` serial client (monitor / snapshot / set)|
+| `easytouch/controller.py` | `EasyTouch` serial client (monitor/snapshot/circuit/heat/schedule) |
+| `easytouch/state.py`      | `BusMonitor` — single-owner bus thread + cached state |
+| `easytouch/intellichlor.py` | IntelliChlor native-protocol framer + salt decode  |
+| `easytouch/api.py`        | `serve()` — stdlib HTTP JSON API over the bus       |
+| `easytouch/web.py`        | `PAGE` — the self-contained single-page dashboard   |
 | `easytouch/cli.py`        | `python -m easytouch` command-line interface        |
 | `examples/monitor.py`     | Minimal live-monitor script                         |
 | `tests/`                  | Unit tests against real captured frames             |

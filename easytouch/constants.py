@@ -43,11 +43,16 @@ ADDRESS_NAMES = {
 }
 
 
+def is_pump(addr: int) -> bool:
+    """True if ``addr`` is an IntelliFlo pump address (0x60-0x6F)."""
+    return 0x60 <= addr <= 0x6F
+
+
 def address_name(addr: int) -> str:
     """Human-readable name for a bus address (falls back to hex)."""
     if addr in ADDRESS_NAMES:
         return ADDRESS_NAMES[addr]
-    if 0x60 <= addr <= 0x6F:
+    if is_pump(addr):
         return f"Pump {addr - 0x5F}"
     return f"0x{addr:02x}"
 
@@ -61,18 +66,18 @@ class Action:
     HEAT_STATUS = 8
     CUSTOM_NAMES = 10
     CIRCUIT_NAMES = 11
-    INTELLICHLOR_STATUS = 25
     SCHEDULE = 17             # schedule details (broadcast / response to GET_SCHEDULE)
+    INTELLICHEM = 18          # IntelliChem chemistry controller status
+    INTELLICHLOR_STATUS = 25
+    VALVE_STATUS = 29
     SET_CIRCUIT = 134         # 0x86 set a circuit on/off
     SET_HEAT = 136            # 0x88 set heat set-points / mode
     SET_SCHEDULE = 145        # 0x91 write a schedule
     GET_STATUS = 194
     GET_HEAT = 200            # 0xc8 request heat/temperature status
     GET_SCHEDULE = 209        # 0xd1 request schedule(s)
-    GET_VERSION = 253         # request software version
     SW_VERSION = 252          # software version info
-    VALVE_STATUS = 29
-    INTELLICHEM = 18
+    GET_VERSION = 253         # 0xfd request software version
 
 
 # Controller action names (the meaning of CFI depends on the destination; this
@@ -89,6 +94,7 @@ ACTION_NAMES = {
     17: "Schedule",
     18: "IntelliChem",
     25: "IntelliChlor Status",
+    29: "Valve Status",
     96: "Set Color",
     133: "Set Date/Time",
     134: "Set Circuit",
@@ -99,6 +105,7 @@ ACTION_NAMES = {
     200: "Get Heat/Temp",
     209: "Get Schedule",
     252: "SW Version",
+    253: "Get SW Version",
 }
 
 # Pump action codes (CFI when src/dst is a pump).
