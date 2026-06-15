@@ -28,6 +28,7 @@ from .decode import (
     ControllerStatus,
     DateTime,
     HeatStatus,
+    IntelliChem,
     PumpStatus,
     Schedule,
     SoftwareVersion,
@@ -212,6 +213,8 @@ class BusMonitor:
                 self.state["version"] = obj
             elif isinstance(obj, ValveStatus):
                 self.state["valves"] = obj
+            elif isinstance(obj, IntelliChem):
+                self.state["intellichem"] = obj
             self.raw[pkt.cfi] = pkt.to_bytes(idle=0).hex()
             self.last_packet_ts = time.time()
             if pkt.src == C.Address.MAIN:
@@ -287,6 +290,7 @@ class BusMonitor:
             dt = self.state.get("datetime")
             ver = self.state.get("version")
             valves = self.state.get("valves")
+            chem = self.state.get("intellichem")
             pumps = dict(self.state.get("pumps", {}))
             scheds = dict(self.state.get("schedules", {}))
             raw = dict(self.raw)
@@ -312,6 +316,7 @@ class BusMonitor:
             "datetime": _to_jsonable(dt) if dt else None,
             "version": _to_jsonable(ver) if ver else None,
             "valves": _to_jsonable(valves) if valves else None,
+            "intellichem": _to_jsonable(chem) if chem else None,
             "pumps": {n: _to_jsonable(p) for n, p in pumps.items()},
             "schedules": {i: _to_jsonable(s) for i, s in scheds.items()},
             "chlorinator": chlor or None,

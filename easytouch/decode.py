@@ -186,6 +186,25 @@ class ValveStatus:
     raw: str
 
 
+@dataclass
+class IntelliChem:
+    """Decoded ``Action.INTELLICHEM`` (CFI 18) — water-chemistry controller status.
+
+    .. note::
+       Offsets follow the nodejs-poolController / reference field map and are **not
+       confirmed** against this hardware (this system may have no IntelliChem). The
+       four high-confidence readings below (pH / ORP and their setpoints) are
+       decoded; tank levels, water balance and alarms stay in ``raw`` until a live
+       CFI 18 frame is captured. ``raw`` is authoritative.
+    """
+
+    ph: float           # pH reading        (payload [0:2] / 100)
+    orp: int            # ORP reading, mV   (payload [2:4])
+    ph_setpoint: float  # pH setpoint       (payload [4:6] / 100)
+    orp_setpoint: int   # ORP setpoint, mV  (payload [6:8])
+    raw: str            # hex of the full payload
+
+
 # --- Schedules --------------------------------------------------------------
 # Day-of-week bitmask, per the nodejs-poolController convention. The raw byte is
 # always exposed alongside the decoded names in case a controller orders the
@@ -368,6 +387,18 @@ def decode_valve(pkt: Packet) -> ValveStatus:
     return ValveStatus(valves=list(data), raw=data.hex())
 
 
+def decode_intellichem(pkt: Packet) -> IntelliChem:
+    b = _spec_reader(pkt)
+    u16 = lambda i: (b(i) << 8) | b(i + 1)        # payload idx n -> body n+6
+    return IntelliChem(
+        ph=u16(6) / 100,             # payload [0:2]
+        orp=u16(8),                  # payload [2:4]
+        ph_setpoint=u16(10) / 100,   # payload [4:6]
+        orp_setpoint=u16(12),        # payload [6:8]
+        raw=bytes(pkt.data).hex(),
+    )
+
+
 def decode(pkt: Packet):
     """Dispatch a packet to the most specific decoder available.
 
@@ -387,4 +418,6 @@ def decode(pkt: Packet):
         return decode_version(pkt)
     if pkt.cfi == C.Action.VALVE_STATUS and pkt.src == C.Address.MAIN:
         return decode_valve(pkt)
+    if pkt.cfi == C.Action.INTELLICHEM and pkt.src in (C.Address.INTELLICHEM, C.Address.MAIN):
+        return decode_intellichem(pkt)
     return Unknown(packet=pkt, description=str(pkt))

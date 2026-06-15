@@ -34,6 +34,7 @@ class FakeMonitor:
                 "chlorinator": {"salt_ppm": 2750, "output_percent": 30, "status_flags": 128},
                 "version": {"version": "2.080", "major": 2, "minor": 80, "raw": "0250"},
                 "valves": {"valves": [0, 1, 2], "raw": "000102"},
+                "intellichem": {"ph": 7.52, "orp": 700, "ph_setpoint": 7.6, "orp_setpoint": 720},
                 "raw": {2: "00ffa5"}}
 
     def set_circuit(self, n: int, on: bool) -> None:
@@ -219,3 +220,10 @@ def test_get_valves_subset(server):
     code, body = _get(port, "/valves")
     assert code == 200
     assert body["valves"] == [0, 1, 2]
+
+
+def test_get_intellichem_subset(server):
+    _mon, port = server
+    code, body = _get(port, "/intellichem")
+    assert code == 200
+    assert body["orp"] == 700

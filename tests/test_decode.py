@@ -146,6 +146,27 @@ def test_dispatch_routes_valve():
     assert isinstance(decode(pkt), ValveStatus)
 
 
+INTELLICHEM_DATA = bytes([0x02, 0xF0, 0x02, 0xBC, 0x02, 0xF8, 0x02, 0xD0])
+# pH 752/100=7.52, ORP 700, pH SP 760/100=7.60, ORP SP 720 (reference field map).
+
+
+def test_decode_intellichem_core_readings():
+    from easytouch.decode import IntelliChem, decode_intellichem
+    pkt = Packet(sub=0x10, dst=0x0F, src=C.Address.INTELLICHEM,
+                 cfi=C.Action.INTELLICHEM, data=INTELLICHEM_DATA)
+    c = decode_intellichem(pkt)
+    assert isinstance(c, IntelliChem)
+    assert round(c.ph, 2) == 7.52 and c.orp == 700
+    assert round(c.ph_setpoint, 2) == 7.60 and c.orp_setpoint == 720
+
+
+def test_dispatch_routes_intellichem():
+    from easytouch.decode import IntelliChem
+    pkt = Packet(sub=0x10, dst=0x0F, src=C.Address.INTELLICHEM,
+                 cfi=C.Action.INTELLICHEM, data=INTELLICHEM_DATA)
+    assert isinstance(decode(pkt), IntelliChem)
+
+
 def test_dispatch_picks_controller_status():
     s = decode(decode_frame(REAL_STATUS))
     assert isinstance(s, ControllerStatus)

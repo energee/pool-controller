@@ -233,6 +233,7 @@ function renderCards(s) {
   cards.push(heatCard(s.heat));
   cards.push(circuitsCard(s.status));
   cards.push(chlorinatorCard(s.chlorinator));  // secondary
+  cards.push(intellichemCard(s.intellichem));
   cards.push(schedulesCard(s.schedules));
   cards.push(pumpsCard(s.pumps, s.datetime));
   cards.push(rawCard(s.raw));                   // utility (collapsed)
@@ -300,6 +301,15 @@ function chlorinatorCard(c) {
             (c.age > 120 ? '⚠ stale — last update ' : 'updated ') + ago + ' ago</div>';
   }
   return card('Salt / Chlorinator', body);
+}
+
+function intellichemCard(c) {
+  if (!c) return '';   // only shown when an IntelliChem controller is present
+  let body = '<div class="grid2">' +
+    tile('pH', c.ph == null ? '—' : c.ph) +
+    tile('ORP', c.orp == null ? '—' : c.orp + ' mV') + '</div>';
+  body += row('pH setpoint', esc(c.ph_setpoint)) + row('ORP setpoint', esc(c.orp_setpoint) + ' mV');
+  return card('IntelliChem', body, true);   // experimental: layout unconfirmed
 }
 
 function circuitsCard(st) {
