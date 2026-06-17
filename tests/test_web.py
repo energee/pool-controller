@@ -45,3 +45,11 @@ def test_page_shows_salt_chlorinator():
     low = PAGE.lower()
     assert "chlorinator" in low
     assert "salt" in low
+
+
+def test_page_exposes_all_decoded_sections_and_controls():
+    # every equipment-coverage feature is wired into the dashboard (read-outs are
+    # rendered via renderCards, controls call the write endpoints) -- not just the API.
+    for marker in ("valvesCard(s.valves)", "namesCard(s.names)", "intellichemCard",
+                   "lightsCard", "setChlor", "setClock", "setLight", "setPump"):
+        assert marker in PAGE, marker

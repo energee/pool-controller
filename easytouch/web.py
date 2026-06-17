@@ -237,6 +237,8 @@ function renderCards(s) {
   cards.push(intellichemCard(s.intellichem));
   cards.push(schedulesCard(s.schedules));
   cards.push(pumpsCard(s.pumps, s.datetime));
+  cards.push(valvesCard(s.valves));
+  cards.push(namesCard(s.names));
   cards.push(rawCard(s.raw));                   // utility (collapsed)
   document.getElementById('cards').innerHTML = cards.join('');
 }
