@@ -313,6 +313,29 @@ function intellichemCard(c) {
   return card('IntelliChem', body, true);   // experimental: layout unconfirmed
 }
 
+function valvesCard(v) {
+  if (!v) return '';   // shown only once a valve-status frame (CFI 29) has arrived
+  const vals = (v.valves || []);
+  const tiles = vals.length
+    ? '<div class="grid2">' + vals.map((b, i) => tile('Valve ' + (i + 1), b)).join('') + '</div>'
+    : '<div class="muted">no valve positions</div>';
+  const body = tiles + row('Raw', '<span class="muted">' + esc(v.raw) + '</span>');
+  return card('Valves', body, true);   // experimental: per-byte meanings unconfirmed
+}
+
+function namesCard(names) {
+  names = names || {};
+  const keys = Object.keys(names).sort((a, b) => a - b);
+  if (!keys.length) return '';   // shown only once circuit-name config (CFI 11) arrives
+  const rows = keys.map(k => {
+    const n = names[k];
+    return row('Circuit ' + esc(n.circuit), 'fn ' + esc(n.function) + ' · name id ' + esc(n.name_id));
+  }).join('');
+  return card('Circuit config / names',
+    rows + '<div class="muted" style="margin-top:8px">name id → text needs a live capture; ' +
+    'display names use the built-in defaults.</div>', true);
+}
+
 function circuitsCard(st) {
   const on = (st && st.circuits_on) || [];
   const cells = CIRCUITS.map(c => {
