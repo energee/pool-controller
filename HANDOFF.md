@@ -67,7 +67,6 @@ python3 -m venv .venv && ./.venv/bin/python -m pip install -e . pytest
 | `easytouch/controller.py` | `EasyTouch` client: `packets()`, `snapshot()`, `set_circuit()`, `get_schedules()`, `set_schedule()` |
 | `easytouch/cli.py`        | `python -m easytouch` CLI |
 | `easytouch/__main__.py`   | `python -m easytouch` entry |
-| `examples/monitor.py`     | Minimal live monitor script |
 | `tests/test_protocol.py`  | Frame + reader tests (uses a real captured frame) |
 | `tests/test_decode.py`    | Status/date/pump decode tests |
 | `tests/test_schedule.py`  | Schedule encode/decode + Get/Set frame tests |
@@ -159,7 +158,7 @@ resume). Key files there: `PACKET_SPEC.txt`, `pool_controller.py`. Repo:
 ```
 - Checksum = 16-bit unsigned sum of body (`0xA5` … last data byte), big-endian.
 - Field offsets are quoted from the full body (0xA5 = index 0); payload byte *n*
-  is body offset *n+6*. `Packet.body_byte(n)` indexes that way.
+  is body offset *n+6*. `Packet.body()` returns the full body for that indexing.
 
 **Addresses:** `0x0F` broadcast · `0x10` main controller · `0x20` remote (we send
 as this) · `0x60+` pumps.
@@ -510,15 +509,15 @@ NPC disagree — verify live). Past it: reserved.
 
 ### `explore.py` — live field explorer (built this session)
 
-`easytouch/explore.py` captures frames and shows, per byte, what varies — so you
+`tools/explore.py` captures frames and shows, per byte, what varies — so you
 toggle one thing and watch the byte move. Reference labels embedded in
 `REF_FIELDS`; unknown bytes print as `?`.
 
 ```bash
 # baseline: every byte of every CFI + which already vary on their own
-python -m easytouch.explore survey --port socket://192.168.4.70:4000 --seconds 45 --poll
+python tools/explore.py survey --port socket://192.168.4.70:4000 --seconds 45 --poll
 # live diff: flip ONE thing; the changed byte prints with its label
-python -m easytouch.explore watch  --port socket://192.168.4.70:4000 --cfi 2
+python tools/explore.py watch  --port socket://192.168.4.70:4000 --cfi 2
 ```
 
 Experiment protocol (in `watch`, change one thing → the byte that moves is that field):

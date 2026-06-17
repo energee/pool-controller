@@ -259,24 +259,22 @@ class EasyTouch:
         """Build a Get-Heat (CFI 200) request to the main controller."""
         return self._command(C.Action.GET_HEAT, 0)
 
-    def get_heat(self, timeout: float = 6.0, request: bool = True) -> HeatStatus:
+    def get_heat(self, timeout: float = 6.0) -> HeatStatus:
         """Request and return the controller's heat/temperature status (CFI 8).
 
-        The TCP-bridged bus is sparse, so by default this *requests* a Heat-Status
-        rather than waiting passively. Pass ``request=False`` to only listen.
-
-        On a fresh connection the controller's sub-version is not yet known, and a
-        request stamped with the default sub is ignored; so the request is re-issued
-        whenever a controller packet teaches us a newer sub (cf. :meth:`set_circuit`).
+        The TCP-bridged bus is sparse, so this *requests* a Heat-Status rather than
+        waiting passively. On a fresh connection the controller's sub-version is not
+        yet known and a request stamped with the default sub is ignored, so the
+        request is re-issued whenever a controller packet teaches us a newer sub
+        (cf. :meth:`set_circuit`).
         """
         requested_sub = self.controller_sub
-        if request:
-            self.send(self.build_get_heat())
+        self.send(self.build_get_heat())
         deadline = time.monotonic() + timeout
         for pkt in self._iter_until(deadline):
             if pkt.cfi == C.Action.HEAT_STATUS and pkt.src == C.Address.MAIN:
                 return decode_heat_status(pkt)
-            if request and self.controller_sub != requested_sub:
+            if self.controller_sub != requested_sub:
                 requested_sub = self.controller_sub
                 self.send(self.build_get_heat())  # re-ask with the learned sub
         raise TimeoutError(f"no heat status within {timeout}s")
@@ -326,12 +324,7 @@ class EasyTouch:
         """
         return self._command(C.Action.GET_SCHEDULE, schedule_id)
 
-    def get_schedules(
-        self,
-        count: int = 12,
-        timeout: float = 6.0,
-        request: bool = True,
-    ) -> list[Schedule]:
+    def get_schedules(self, count: int = 12, timeout: float = 6.0) -> list[Schedule]:
         """Collect the controller's stored schedules, sorted by ID.
 
         Two quirks of this controller drive the sequence here:
@@ -339,24 +332,13 @@ class EasyTouch:
         * A Get-Schedule for slot ``0`` returns a single empty placeholder — it is
           **not** an "all schedules" query — so real schedules in slots ``1..count``
           must be polled one id at a time.
-        * Requests stamped with the default sub-version are silently ignored, so
-          (when ``request``) we first wait for a MAIN frame to learn the real sub,
-          then poll each slot.
+        * Requests stamped with the default sub-version are silently ignored, so we
+          first wait for a MAIN frame to learn the real sub, then poll each slot.
 
-        With ``request=False`` it instead passively gathers broadcast schedule
-        frames until ``count`` distinct IDs are seen or ``timeout`` elapses.
         Returns an empty list if the bus serves none (e.g. a status-only sim).
         """
         schedules: dict[int, Schedule] = {}
         deadline = time.monotonic() + timeout
-        if not request:
-            for pkt in self._iter_until(deadline):
-                if pkt.cfi == C.Action.SCHEDULE and pkt.src == C.Address.MAIN:
-                    s = decode_schedule(pkt)
-                    schedules[s.id] = s
-                    if len(schedules) >= count:
-                        break
-            return [schedules[k] for k in sorted(schedules)]
         # Prime: a MAIN frame teaches EasyTouch._feed the controller's real sub so
         # the per-slot requests below are honored.
         for pkt in self._iter_until(deadline):
@@ -445,16 +427,15 @@ class EasyTouch:
         """Build a Get-Version (CFI 253) request to the main controller."""
         return self._command(C.Action.GET_VERSION, 0)
 
-    def get_version(self, timeout: float = 6.0, request: bool = True):
+    def get_version(self, timeout: float = 6.0):
         """Request and return the controller firmware version (CFI 252)."""
         requested_sub = self.controller_sub
-        if request:
-            self.send(self.build_get_version())
+        self.send(self.build_get_version())
         deadline = time.monotonic() + timeout
         for pkt in self._iter_until(deadline):
             if pkt.cfi == C.Action.SW_VERSION and pkt.src == C.Address.MAIN:
                 return decode_version(pkt)
-            if request and self.controller_sub != requested_sub:
+            if self.controller_sub != requested_sub:
                 requested_sub = self.controller_sub
                 self.send(self.build_get_version())
         raise TimeoutError(f"no version within {timeout}s")

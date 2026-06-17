@@ -12,7 +12,7 @@ never silently drops a frame.
 """
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 from . import constants as C
 from .protocol import Packet
@@ -303,10 +303,9 @@ class Schedule:
 
 @dataclass
 class Unknown:
-    """Fallback for packets without a dedicated decoder."""
+    """Fallback for packets without a dedicated decoder; ``str(u.packet)`` describes it."""
 
-    packet: Packet = field(repr=False)
-    description: str = ""
+    packet: Packet
 
 
 def decode_controller_status(pkt: Packet) -> ControllerStatus:
@@ -447,4 +446,4 @@ def decode(pkt: Packet):
         return decode_intellichem(pkt)
     if pkt.cfi == C.Action.CIRCUIT_NAMES and pkt.src == C.Address.MAIN:
         return decode_circuit_names(pkt)
-    return Unknown(packet=pkt, description=str(pkt))
+    return Unknown(packet=pkt)

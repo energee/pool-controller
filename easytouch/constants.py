@@ -156,7 +156,6 @@ HEAT_MODES = {0: "Off", 1: "Heater", 2: "Solar Pref", 3: "Solar Only"}
 RUNMODE_SERVICE = 0x01
 RUNMODE_CELSIUS = 0x04
 RUNMODE_FREEZE = 0x08
-RUNMODE_TIMEOUT = 0x80
 
 
 # --- IntelliBrite light commands -------------------------------------------
@@ -172,7 +171,6 @@ LIGHT_COMMANDS = {
     "save": 190, "recall": 191,
     "blue": 193, "green": 194, "red": 195, "white": 196, "magenta": 197,
 }
-LIGHT_COMMAND_NAMES = {code: name for name, code in LIGHT_COMMANDS.items()}
 
 
 def resolve_light_command(name_or_code) -> int:

@@ -23,8 +23,8 @@ offset − 6) to match :attr:`Packet.data`. Anything without a label is printed 
 
 Usage::
 
-    python -m easytouch.explore survey --port socket://192.168.4.70:4000 --seconds 30
-    python -m easytouch.explore watch  --port socket://192.168.4.70:4000 --cfi 2
+    python tools/explore.py survey --port socket://192.168.4.70:4000 --seconds 30
+    python tools/explore.py watch  --port socket://192.168.4.70:4000 --cfi 2
 """
 from __future__ import annotations
 
@@ -32,8 +32,8 @@ import argparse
 import time
 from collections import defaultdict
 
-from . import constants as C
-from .controller import EasyTouch
+from easytouch import constants as C
+from easytouch.controller import EasyTouch
 
 # Reference field maps, keyed by CFI then *payload* index (= body offset − 6).
 # Sourced from PACKET_SPEC.txt (EasyTouch) and nodejs-poolController. A missing

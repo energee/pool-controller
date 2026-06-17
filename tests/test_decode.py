@@ -219,4 +219,4 @@ def test_dispatch_unknown_for_unmapped_packet():
     pkt = Packet(sub=0, dst=0x0F, src=0x10, cfi=99, data=b"\x01\x02")
     result = decode(pkt)
     assert type(result).__name__ == "Unknown"
-    assert "CFI 99" in result.description
+    assert "CFI 99" in str(result.packet)

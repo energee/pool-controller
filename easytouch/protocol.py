@@ -45,7 +45,7 @@ class Packet:
     Attributes mirror the on-wire header. ``data`` holds only the payload
     bytes (excluding the 6-byte header and 2-byte checksum). Field offsets
     quoted elsewhere in this project are relative to the full body (``0xA5`` at
-    index 0), so ``packet.body_byte(n)`` gives byte *n* of the spec layout.
+    index 0); :meth:`body` returns that full body for spec-offset indexing.
     """
 
     sub: int
@@ -66,11 +66,6 @@ class Packet:
     def body(self) -> bytes:
         """The checksummed body: header + data (no preamble, no checksum)."""
         return bytes([A5, self.sub, self.dst, self.src, self.cfi, self.length]) + self.data
-
-    def body_byte(self, index: int) -> int:
-        """Return body byte at a spec offset (0 == 0xA5); ``0`` past the end."""
-        b = self.body()
-        return b[index] if index < len(b) else 0
 
     def to_bytes(self, idle: int = 2) -> bytes:
         """Serialize to the full on-wire frame, prefixed by ``idle`` 0xFF bytes."""

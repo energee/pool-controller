@@ -28,7 +28,7 @@ flip circuits on and off.
 
 ```bash
 python3 -m venv .venv && source .venv/bin/activate
-pip install -e .          # or: pip install -r requirements.txt
+pip install -e .
 ```
 
 ## The bus / `/tmp/vserial`
@@ -328,7 +328,6 @@ notes.
 | `easytouch/api.py`        | `serve()` — stdlib HTTP JSON API over the bus       |
 | `easytouch/web.py`        | `PAGE` — the self-contained single-page dashboard   |
 | `easytouch/cli.py`        | `python -m easytouch` command-line interface        |
-| `examples/monitor.py`     | Minimal live-monitor script                         |
 | `tests/`                  | Unit tests against real captured frames             |
 
 ## Tests
