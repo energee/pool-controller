@@ -1,0 +1,12 @@
+{
+  "name": "easytouch-frontend",
+  "private": true,
+  "description": "Dashboard frontend for easytouch. Bun bundles frontend/*.ts -> easytouch/static/app.js; the committed build output is what the Python server serves (no Node/Bun needed at runtime).",
+  "scripts": {
+    "build": "bun build frontend/app.ts --outfile easytouch/static/app.js --target browser --minify && cp frontend/index.html frontend/style.css easytouch/static/",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.0"
+  }
+}

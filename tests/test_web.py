@@ -1,55 +1,80 @@
-"""Tests for the self-contained dashboard page (``easytouch.web.PAGE``).
+"""Tests for the dashboard frontend.
 
-The dashboard is a single static HTML document — inline CSS + JS, no external
-assets — served at ``GET /`` by the API. These tests assert it is a well-formed,
-fully self-contained document wired to the real, live-verified endpoints it must
-consume, without needing a browser to run.
+The source lives in ``frontend/`` (TypeScript modules + ``style.css`` +
+``index.html``) and is bundled by Bun into ``easytouch/static`` (``app.js`` plus
+copied ``index.html``/``style.css``), which the API serves at ``GET /`` and
+``GET /static/<file>``. These tests assert the served shell links the built
+assets and that the bundle/source wire the real, live-verified endpoints — no
+browser required. They run against the committed build output in ``static/``;
+run ``bun run build`` after editing ``frontend/`` to refresh it.
 """
 from __future__ import annotations
 
-from easytouch.web import PAGE
+from pathlib import Path
+
+import pytest
+
+from easytouch.api import read_static
+
+FRONTEND = Path(__file__).resolve().parent.parent / "frontend"
 
 
-def test_page_is_html_document():
-    assert PAGE.lstrip().startswith("<!DOCTYPE html>")
-    assert "<title>easytouch" in PAGE
+def _all_src() -> str:
+    return "\n".join(p.read_text() for p in sorted(FRONTEND.glob("*.ts")))
 
 
-def test_page_is_self_contained_no_external_assets():
-    # stdlib-only / offline: styles and scripts are inline, nothing loaded off-box.
-    assert "<style>" in PAGE and "<script>" in PAGE
-    assert "<script src" not in PAGE      # no external scripts
-    assert "<link" not in PAGE            # no external stylesheets
-    assert "https://" not in PAGE         # no CDN references
+def test_index_is_html_document():
+    html, ctype = read_static("index.html")
+    text = html.decode()
+    assert text.lstrip().startswith("<!DOCTYPE html>")
+    assert "<title>easytouch" in text
+    assert ctype.startswith("text/html")
 
 
-def test_page_references_state_endpoint():
-    # the page is a pure client of GET /state (the full snapshot it renders).
-    assert "/state" in PAGE
+def test_index_links_built_assets():
+    # the shell is no longer self-contained — it loads the bundled JS + CSS.
+    text = read_static("index.html")[0].decode()
+    assert 'href="/static/style.css"' in text
+    assert 'src="/static/app.js"' in text
 
 
-def test_page_references_circuit_endpoint():
-    assert "/circuit/" in PAGE
+def test_built_bundle_is_javascript():
+    js, ctype = read_static("app.js")
+    assert ctype.startswith("text/javascript")
+    assert len(js) > 0
 
 
-def test_page_references_heat_endpoint():
-    assert "/heat" in PAGE
+def test_built_style_has_toggle():
+    css, ctype = read_static("style.css")
+    assert ctype.startswith("text/css")
+    assert ".switch" in css.decode()        # the circuit on/off toggle styling
 
 
-def test_page_references_schedule_endpoint():
-    assert "/schedule" in PAGE
+def test_static_read_rejects_traversal():
+    with pytest.raises(FileNotFoundError):
+        read_static("../api.py")
 
 
-def test_page_shows_salt_chlorinator():
-    # the salt card reads the chlorinator section of /state and labels it.
-    low = PAGE.lower()
-    assert "chlorinator" in low
-    assert "salt" in low
+def test_bundle_references_endpoints():
+    js = read_static("app.js")[0].decode()
+    for path in ("/state", "/circuit/", "/heat", "/schedule", "/light", "/chlorinator"):
+        assert path in js, path
 
 
-def test_page_exposes_all_decoded_sections_and_controls():
-    # every equipment-coverage feature is wired into the dashboard (read-outs are
-    # rendered via renderCards, controls call the write endpoints) -- not just the API.
-    for marker in ("valvesCard(s.valves)", "namesCard(s.names)", "intellichemCard",
-                   "lightsCard", "setChlor", "setClock", "setLight", "setPump"):
-        assert marker in PAGE, marker
+def test_bundle_shows_salt_chlorinator():
+    js = read_static("app.js")[0].decode().lower()
+    assert "chlorinator" in js and "salt" in js
+
+
+def test_source_wires_all_sections_and_controls():
+    # every equipment-coverage feature is rendered/controlled in the frontend.
+    src = _all_src()
+    for marker in ("valvesCard", "namesCard", "intellichemCard", "lightsCard",
+                   "setChlor", "setClock", "setLight", "setPump", "saveSchedule"):
+        assert marker in src, marker
+
+
+def test_source_surfaces_command_verdict():
+    # the validator: commands report the controller-confirmation verdict.
+    src = _all_src()
+    assert "confirmed" in src and "accepted" in src

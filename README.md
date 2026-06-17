@@ -216,9 +216,11 @@ python -m easytouch --port socket://192.168.4.70:4000 serve --http-host 0.0.0.0 
 ### Web dashboard
 
 `serve` also hosts a **single-page dashboard** at the root URL — open
-`http://<host>:8080/` in a browser. It's one self-contained HTML page (inline
-CSS/JS, no external assets, no build step) that polls `GET /state` every ~3s and
-renders a card per section — controller status, heat/setpoints, **salt /
+`http://<host>:8080/` in a browser. The source is TypeScript under `frontend/`,
+bundled by Bun into `easytouch/static/` (`app.js` + `index.html`/`style.css`);
+the committed build output is what the server ships, so **no Node/Bun is needed
+at runtime** — only after editing `frontend/` (run `bun run build`). It polls
+`GET /state` every ~3s and renders a card per section — controller status, heat/setpoints, **salt /
 chlorinator**, circuits, **IntelliBrite lights**, pumps, schedules, IntelliChem
 (when present), and the raw/undecoded frames. Controls are editable inline:
 circuit on/off toggles, heat setpoints + modes, chlorinator output %, controller
@@ -325,8 +327,9 @@ notes.
 | `easytouch/controller.py` | `EasyTouch` serial client (monitor/snapshot/circuit/heat/schedule) |
 | `easytouch/state.py`      | `BusMonitor` — single-owner bus thread + cached state |
 | `easytouch/intellichlor.py` | IntelliChlor native-protocol framer + salt decode  |
-| `easytouch/api.py`        | `serve()` — stdlib HTTP JSON API over the bus       |
-| `easytouch/web.py`        | `PAGE` — the self-contained single-page dashboard   |
+| `easytouch/api.py`        | `serve()` — stdlib HTTP JSON API over the bus; serves the built dashboard |
+| `easytouch/static/`       | Built dashboard bundle (`app.js` + `index.html`/`style.css`), committed |
+| `frontend/`               | Dashboard source (TypeScript modules + CSS/HTML); `bun run build` |
 | `easytouch/cli.py`        | `python -m easytouch` command-line interface        |
 | `tests/`                  | Unit tests against real captured frames             |
 

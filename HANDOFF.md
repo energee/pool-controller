@@ -577,11 +577,16 @@ bytes move on live hardware.
 
 ## 14. DONE — web dashboard (§12) + salt/chlorinator decode
 
-**Web dashboard (§12): built.** `easytouch/web.py` holds `PAGE` — one
-self-contained HTML doc (inline CSS/JS, no deps, no build). Served at `GET /`; the
-JSON endpoint index moved to `GET /api`. Polls `/state` every ~3 s, a card per
-section, pauses re-render while a control is focused/just-changed. Tests:
-`tests/test_web.py`; `tests/test_api.py` updated (`/` → HTML, `/api` → JSON index).
+**Web dashboard (§12): built.** Source is TypeScript under `frontend/`
+(`app.ts` + `cards.ts`/`controls.ts`/`dom.ts`/`store.ts`/`types.ts` + `index.html`
+/`style.css`), bundled by Bun (`bun run build`) into `easytouch/static/`
+(`app.js` + copied `index.html`/`style.css`). `easytouch/api.py` exposes
+`read_static()` and serves `GET /` (index.html) and `GET /static/<file>` —
+**the committed bundle runs with no Node/Bun on the host**. The JSON endpoint
+index moved to `GET /api`. Polls `/state` every ~3 s, a card per section, pauses
+re-render while a control is focused/just-changed, and surfaces each command's
+confirmation verdict (confirmed / accepted / sent). Tests: `tests/test_web.py`;
+`tests/test_api.py` (`/` → HTML, `/api` → JSON index).
 
 **Salt / chlorinator (new).** Salt rides the IntelliChlor **native** protocol, NOT
 A5: `10 02 <dest> <cmd> <data...> <chk> 10 03`, checksum =

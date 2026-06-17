@@ -37,14 +37,37 @@ from __future__ import annotations
 
 import json
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from pathlib import Path
 from urllib.parse import urlparse
 
 from . import constants as C
 from .controller import DEFAULT_BAUD, resolve_circuit
 from .state import BusMonitor
-from .web import PAGE
 
 CONFIRM_TIMEOUT = 6.0
+
+# The dashboard is TypeScript under ../frontend, bundled by Bun (`bun run build`)
+# into ./static (app.js + copied index.html/style.css). The committed bundle is
+# what we serve — no Node/Bun needed at runtime. See README / tests/test_web.py.
+STATIC_DIR = Path(__file__).parent / "static"
+_CONTENT_TYPES = {
+    ".html": "text/html; charset=utf-8",
+    ".js": "text/javascript; charset=utf-8",
+    ".css": "text/css; charset=utf-8",
+}
+
+
+def read_static(name: str) -> tuple[bytes, str]:
+    """Return ``(bytes, content_type)`` for a built asset under ``static/``.
+
+    Raises ``FileNotFoundError`` for a missing file or any path that escapes
+    ``static/`` (defence-in-depth against traversal — callers also allowlist).
+    """
+    root = STATIC_DIR.resolve()
+    path = (root / name).resolve()
+    if root != path.parent or not path.is_file():
+        raise FileNotFoundError(name)
+    return path.read_bytes(), _CONTENT_TYPES.get(path.suffix, "application/octet-stream")
 
 # Subsets of get_state() exposed as their own GET endpoints.
 _SUBSETS = ("status", "heat", "datetime", "pumps", "schedules", "chlorinator",
@@ -110,10 +133,9 @@ class PoolHandler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
-    def _send_html(self, code: int, html: str) -> None:
-        body = html.encode()
+    def _send_asset(self, code: int, body: bytes, content_type: str) -> None:
         self.send_response(code)
-        self.send_header("Content-Type", "text/html; charset=utf-8")
+        self.send_header("Content-Type", content_type)
         self.send_header("Content-Length", str(len(body)))
         self.end_headers()
         self.wfile.write(body)
@@ -151,8 +173,15 @@ class PoolHandler(BaseHTTPRequestHandler):
     def _route_get(self, parts) -> None:
         m = self.monitor
         if not parts:
-            return self._send_html(200, PAGE)        # the human dashboard
+            body, ctype = read_static("index.html")   # the human dashboard
+            return self._send_asset(200, body, ctype)
         head = parts[0]
+        if head == "static" and len(parts) == 2:
+            try:
+                body, ctype = read_static(parts[1])    # built JS/CSS bundle
+            except FileNotFoundError:
+                return self._err(404, "not found")
+            return self._send_asset(200, body, ctype)
         if head == "api" and len(parts) == 1:
             return self._send(200, {"endpoints": ENDPOINTS})
         if head == "state" and len(parts) == 1:
