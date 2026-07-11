@@ -59,6 +59,44 @@ python -m easytouch --port socket://192.168.4.70:4000 status
 
 `--port` accepts `socket://HOST:PORT` (raw TCP) or `tcp://HOST:PORT` (an alias).
 
+## Run on a Raspberry Pi (systemd)
+
+Deploy the dashboard on a Pi wired straight to the RS-485 bus. Only Python
+≥3.9 and `pyserial` are needed at runtime — the frontend is served from the
+committed `easytouch/static/` build, so **no Node/Bun on the Pi**.
+
+```bash
+# 1. Get the code and install (creates .venv with pyserial)
+git clone git@github.com:energee/pool-controller.git ~/pool   # or: cd ~/pool && git pull
+cd ~/pool
+python3 -m venv .venv && .venv/bin/pip install -e .
+
+# 2. Find the serial device. Common: /dev/serial0 (GPIO UART) or /dev/ttyUSB0 (USB adapter)
+ls -l /dev/serial* /dev/ttyUSB* 2>/dev/null
+
+# 3. Sanity-check against the live bus (Ctrl-C to stop)
+.venv/bin/python -m easytouch --port /dev/serial0 status
+```
+
+If you use the Pi's **GPIO UART** (`/dev/serial0`), enable it and free it from
+the login console first: `sudo raspi-config` → *Interface Options* → *Serial
+Port* → login shell **No**, serial hardware **Yes**, then reboot. (USB RS-485
+adapters need no such step.)
+
+Install as a boot service (auto-starts, restarts on crash):
+
+```bash
+sudo cp deploy/easytouch.service /etc/systemd/system/
+# Adjust User=, the two /home/pi/pool paths, and --port if they differ:
+sudoedit /etc/systemd/system/easytouch.service
+sudo systemctl daemon-reload
+sudo systemctl enable --now easytouch
+systemctl status easytouch     # should read: active (running)
+journalctl -u easytouch -f     # live logs
+```
+
+Then open `http://<pi-ip>:8080/` from any device on the LAN.
+
 ## CLI
 
 ```bash

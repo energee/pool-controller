@@ -1,0 +1,23 @@
+# systemd unit for the easytouch pool dashboard.
+# Owns the RS-485 serial bus and serves the HTTP JSON API + dashboard on :8080.
+# Install steps: see "Run on a Raspberry Pi" in README.md.
+#   sudo cp deploy/easytouch.service /etc/systemd/system/
+#   sudo systemctl enable --now easytouch
+# Adjust User=, the two /home/pi/pool paths, and --port to match your Pi.
+[Unit]
+Description=easytouch pool dashboard (serial bus + HTTP API)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=pi
+# Grants serial-port access without editing the login user's groups.
+SupplementaryGroups=dialout
+WorkingDirectory=/home/pi/pool
+ExecStart=/home/pi/pool/.venv/bin/python -m easytouch --port /dev/serial0 serve --http-port 8080
+Restart=on-failure
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target
