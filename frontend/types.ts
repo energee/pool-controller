@@ -59,10 +59,11 @@ export interface Pump {
 
 export interface Schedule {
   id: number | string;
+  circuit?: number; // circuit number (0 = empty slot); circuit_name is its label
   circuit_name?: string;
   start?: string;
   end?: string;
-  days?: string[];
+  days?: string[]; // ["Every day"] or ["Mon","Wed",...] from decode_days
   active?: boolean;
 }
 

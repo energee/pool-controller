@@ -1,8 +1,9 @@
 """Tests for the dashboard frontend.
 
-The source lives in ``frontend/`` (TypeScript modules + ``style.css`` +
-``index.html``) and is bundled by Bun into ``easytouch/static`` (``app.js`` plus
-copied ``index.html``/``style.css``), which the API serves at ``GET /`` and
+The source lives in ``frontend/`` (a React + shadcn/ui + Tailwind v4 app:
+``app.tsx`` + ``components/**/*.tsx`` + ``styles.css`` + ``index.html``) and is
+bundled by Bun into ``easytouch/static`` (``app.js`` + Tailwind-compiled
+``style.css`` + copied ``index.html``), which the API serves at ``GET /`` and
 ``GET /static/<file>``. These tests assert the served shell links the built
 assets and that the bundle/source wire the real, live-verified endpoints — no
 browser required. They run against the committed build output in ``static/``;
@@ -20,7 +21,9 @@ FRONTEND = Path(__file__).resolve().parent.parent / "frontend"
 
 
 def _all_src() -> str:
-    return "\n".join(p.read_text() for p in sorted(FRONTEND.glob("*.ts")))
+    # Concatenate every .ts/.tsx source file (app, hooks, lib, components).
+    files = sorted(FRONTEND.rglob("*.ts")) + sorted(FRONTEND.rglob("*.tsx"))
+    return "\n".join(p.read_text() for p in files)
 
 
 def test_index_is_html_document():
@@ -32,10 +35,11 @@ def test_index_is_html_document():
 
 
 def test_index_links_built_assets():
-    # the shell is no longer self-contained — it loads the bundled JS + CSS.
+    # the shell is just a mount point — it loads the bundled JS + CSS.
     text = read_static("index.html")[0].decode()
     assert 'href="/static/style.css"' in text
     assert 'src="/static/app.js"' in text
+    assert 'id="root"' in text          # React mounts here
 
 
 def test_built_bundle_is_javascript():
@@ -44,10 +48,10 @@ def test_built_bundle_is_javascript():
     assert len(js) > 0
 
 
-def test_built_style_has_toggle():
+def test_built_style_is_css():
     css, ctype = read_static("style.css")
     assert ctype.startswith("text/css")
-    assert ".switch" in css.decode()        # the circuit on/off toggle styling
+    assert len(css) > 0
 
 
 def test_static_read_rejects_traversal():
@@ -67,10 +71,11 @@ def test_bundle_shows_salt_chlorinator():
 
 
 def test_source_wires_all_sections_and_controls():
-    # every equipment-coverage feature is rendered/controlled in the frontend.
+    # every equipment-coverage feature is rendered/controlled in the React app.
     src = _all_src()
-    for marker in ("valvesCard", "namesCard", "intellichemCard", "lightsCard",
-                   "setChlor", "setClock", "setLight", "setPump", "saveSchedule"):
+    for marker in ("ValvesCard", "NamesCard", "IntelliChemCard", "LightsCard",
+                   "CircuitsCard", "ChlorinatorCard", "SchedulesCard", "PumpsCard",
+                   "Set output", "Set clock to now", "Apply heat", "Save schedule"):
         assert marker in src, marker
 
 

@@ -296,7 +296,19 @@ class PoolHandler(BaseHTTPRequestHandler):
         iso = body.get("iso")
         when = dt.datetime.fromisoformat(iso) if iso else None
         res = self.monitor.set_datetime(when)
-        self._send(200, {"sent": True, "datetime": res})
+
+        # Confirm like the other writes: poll the cache for a Date/Time broadcast
+        # echoing the date+hour we sent (minute may have ticked; matches
+        # controller.set_datetime semantics).
+        def matches(s) -> bool:
+            d = s.get("datetime")
+            return bool(d) and (d["hour"], d["day"], d["month"]) == \
+                (res["hour"], res["day"], res["month"])
+
+        st = self.monitor.wait_for(matches, timeout=self.confirm_timeout)
+        if st is None:
+            return self._send(202, {"accepted": True, "requested": res})
+        return self._send(200, {"confirmed": True, "datetime": st["datetime"]})
 
     def _set_light(self, command) -> None:
         if command is None:

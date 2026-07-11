@@ -25,11 +25,13 @@ class FakeMonitor:
         self._heat = {"pool_temp": 84, "spa_temp": 84, "air_temp": 85,
                       "pool_setpoint": 84, "spa_setpoint": 70,
                       "pool_heat_mode": "Heater", "spa_heat_mode": "Heater", "heat_mode_raw": 5}
+        self._datetime = None
         self.calls: list = []
 
     def get_state(self) -> dict:
         return {"connected": True, "error": None, "last_packet_ts": 1.0, "age": 0.0,
-                "status": dict(self._status), "heat": dict(self._heat), "datetime": None,
+                "status": dict(self._status), "heat": dict(self._heat),
+                "datetime": dict(self._datetime) if self._datetime else None,
                 "pumps": {}, "schedules": {},
                 "chlorinator": {"salt_ppm": 2750, "output_percent": 30, "status_flags": 128},
                 "version": {"version": "2.080", "major": 2, "minor": 80, "raw": "0250"},
@@ -64,7 +66,9 @@ class FakeMonitor:
 
     def set_datetime(self, when=None, auto_dst=True) -> dict:
         self.calls.append(("datetime", when))
-        return {"hour": 11, "minute": 30, "year": 2026}
+        res = {"hour": 11, "minute": 30, "day": 14, "month": 6, "year": 2026}
+        self._datetime = dict(res)   # controller echoes it back → confirmable
+        return res
 
     def set_light(self, command) -> int:
         from easytouch import constants as C
@@ -214,7 +218,7 @@ def test_post_datetime(server):
     mon, port = server
     code, body = _post(port, "/datetime", {})
     assert code == 200
-    assert body["sent"] is True
+    assert body["confirmed"] is True
     assert any(c[0] == "datetime" for c in mon.calls)
 
 

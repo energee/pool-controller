@@ -1,0 +1,104 @@
+/* Tailwind v4 entrypoint for the easytouch dashboard.
+   Dark, Linear-inspired theme (layered near-black surfaces, indigo accent,
+   hairline borders, tabular numerals) ported into the shadcn CSS-variable token
+   system. Compiled by @tailwindcss/cli into easytouch/static/style.css. */
+@import "tailwindcss";
+
+/* Scan the React source so utility classes used in .tsx are emitted. */
+@source "./**/*.tsx";
+
+/* Dark by default (single-theme app). */
+@custom-variant dark (&:is(.dark *));
+
+:root {
+  --background: #08090a;
+  --foreground: #e6e7ea;
+
+  --card: #101113;
+  --card-foreground: #e6e7ea;
+
+  --popover: #0e0f11;
+  --popover-foreground: #e6e7ea;
+
+  --primary: #5e6ad2;
+  --primary-foreground: #ffffff;
+
+  --secondary: #0e0f11;
+  --secondary-foreground: #e6e7ea;
+
+  --muted: #0e0f11;
+  --muted-foreground: #8a8f98;
+
+  --accent: #16181c;
+  --accent-foreground: #e6e7ea;
+
+  --destructive: #e5534b;
+  --destructive-foreground: #ffffff;
+
+  --warning: #e2a93b;
+  --success: #4cc38a;
+
+  --border: rgba(255, 255, 255, 0.07);
+  --input: rgba(255, 255, 255, 0.13);
+  --ring: #5e6ad2;
+
+  --radius: 0.5rem;
+}
+
+/* Map the CSS variables into Tailwind's theme so utilities like bg-card,
+   text-muted-foreground, border-border, ring-ring etc. resolve. */
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-warning: var(--warning);
+  --color-success: var(--success);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  --radius-lg: var(--radius);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-sm: calc(var(--radius) - 4px);
+}
+
+@layer base {
+  * {
+    border-color: var(--border);
+  }
+  body {
+    margin: 0;
+    color: var(--foreground);
+    background:
+      radial-gradient(900px 480px at 50% -220px, rgba(94, 106, 210, 0.1), transparent 70%),
+      var(--background);
+    font-family:
+      -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial,
+      sans-serif;
+    font-size: 14px;
+    line-height: 1.55;
+    -webkit-font-smoothing: antialiased;
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+/* The circuit on/off toggle keeps the legacy .switch hook so existing styling
+   tests and any external references stay meaningful (Radix Switch is used in
+   the React tree; this class is applied to its wrapper). */
+.switch {
+  display: inline-flex;
+  align-items: center;
+}

@@ -1,12 +1,29 @@
 {
   "name": "easytouch-frontend",
   "private": true,
-  "description": "Dashboard frontend for easytouch. Bun bundles frontend/*.ts -> easytouch/static/app.js; the committed build output is what the Python server serves (no Node/Bun needed at runtime).",
+  "description": "React + shadcn/ui + Tailwind v4 dashboard frontend for easytouch. Bun bundles frontend/app.tsx -> easytouch/static/app.js and @tailwindcss/cli compiles styles -> easytouch/static/style.css; the committed build output is what the Python server serves (no Node/Bun needed at runtime).",
   "scripts": {
-    "build": "bun build frontend/app.ts --outfile easytouch/static/app.js --target browser --minify && cp frontend/index.html frontend/style.css easytouch/static/",
+    "build": "bunx @tailwindcss/cli -i frontend/styles.css -o easytouch/static/style.css --minify && bun build frontend/app.tsx --outfile easytouch/static/app.js --target browser --minify && cp frontend/index.html easytouch/static/",
     "typecheck": "tsc --noEmit"
   },
   "devDependencies": {
+    "@tailwindcss/cli": "^4.3.1",
+    "@types/react": "^19.2.17",
+    "@types/react-dom": "^19.2.3",
+    "tailwindcss": "^4.3.1",
     "typescript": "^5.7.0"
+  },
+  "dependencies": {
+    "@radix-ui/react-label": "^2.1.10",
+    "@radix-ui/react-select": "^2.3.1",
+    "@radix-ui/react-slot": "^1.3.0",
+    "@radix-ui/react-switch": "^1.3.1",
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
+    "lucide-react": "^1.20.0",
+    "react": "^19.2.7",
+    "react-dom": "^19.2.7",
+    "sonner": "^2.0.7",
+    "tailwind-merge": "^3.6.0"
   }
 }
