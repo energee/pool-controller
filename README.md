@@ -69,7 +69,8 @@ committed `easytouch/static/` build, so **no Node/Bun on the Pi**.
 # 1. Get the code and install (creates .venv with pyserial)
 git clone git@github.com:energee/pool-controller.git ~/pool   # or: cd ~/pool && git pull
 cd ~/pool
-python3 -m venv .venv && .venv/bin/pip install -e .
+# Raspberry Pi OS ships an old pip; -U pip is needed for the editable install below.
+python3 -m venv .venv && .venv/bin/pip install -U pip && .venv/bin/pip install -e .
 
 # 2. Find the serial device. Common: /dev/serial0 (GPIO UART) or /dev/ttyUSB0 (USB adapter)
 ls -l /dev/serial* /dev/ttyUSB* 2>/dev/null
