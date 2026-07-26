@@ -10,12 +10,13 @@ import type { SceneState } from "../../lib/scene";
 
 type Point = [number, number, number];
 
-// 8x1 texture: half cyan, half transparent -> repeating dashes along the tube.
-function makeStripeTexture(): THREE.DataTexture {
+// 8x1 texture: half colored, half transparent -> repeating dashes along the
+// tube. Cool cyan for water, warm red past a firing heater.
+function makeStripeTexture(rgb: [number, number, number]): THREE.DataTexture {
   const data = new Uint8Array(8 * 4);
   for (let i = 0; i < 8; i++) {
     const on = i < 4;
-    data.set(on ? [79, 195, 247, 255] : [0, 0, 0, 0], i * 4);
+    data.set(on ? [...rgb, 255] : [0, 0, 0, 0], i * 4);
   }
   const tex = new THREE.DataTexture(data, 8, 1);
   tex.wrapS = THREE.RepeatWrapping;
@@ -28,11 +29,13 @@ function PipeRun({
   active,
   flow,
   ghost = false, // underground: drawn x-ray style through the deck
+  hot = false, // downstream of a firing heater: red pipe, warm dashes
 }: {
   points: Point[];
   active: boolean;
   flow: number;
   ghost?: boolean;
+  hot?: boolean;
 }) {
   const stripes = React.useRef<THREE.MeshBasicMaterial>(null);
   const { curve, length } = React.useMemo(() => {
@@ -45,10 +48,10 @@ function PipeRun({
     return { curve: c, length: c.getLength() };
   }, [points]);
   const texture = React.useMemo(() => {
-    const t = makeStripeTexture();
+    const t = makeStripeTexture(hot ? [255, 122, 84] : [79, 195, 247]);
     t.repeat.set(length / 0.7, 1); // one dash+gap every ~0.7 world units
     return t;
-  }, [length]);
+  }, [length, hot]);
 
   useFrame((_, dt) => {
     if (stripes.current?.map) stripes.current.map.offset.x -= dt * 2.5 * flow;
@@ -60,14 +63,14 @@ function PipeRun({
         <tubeGeometry args={[curve, 48, 0.06, 10, false]} />
         {ghost ? (
           <meshBasicMaterial
-            color="#9aa2ac"
+            color={hot ? "#c9705a" : "#9aa2ac"}
             transparent
             opacity={0.3}
             depthTest={false}
             depthWrite={false}
           />
         ) : (
-          <meshStandardMaterial color="#aab2bb" roughness={0.6} />
+          <meshStandardMaterial color={hot ? "#c9705a" : "#aab2bb"} roughness={0.6} />
         )}
       </mesh>
       <mesh visible={active && flow > 0} renderOrder={ghost ? 6 : 0}>
@@ -170,11 +173,12 @@ export function Pipes({ scene }: { scene: SceneState }) {
         active={scene.poolOn}
         flow={scene.flow}
         ghost
+        hot={scene.heaterOn}
       />
       <PipeRun points={pumpToFilter} active={scene.poolOn} flow={scene.flow} />
       <PipeRun points={filterToHeater} active={scene.poolOn} flow={scene.flow} />
-      <PipeRun points={heaterToCell} active={scene.poolOn} flow={scene.flow} />
-      <PipeRun points={returnPool} active={scene.poolOn} flow={scene.flow} />
+      <PipeRun points={heaterToCell} active={scene.poolOn} flow={scene.flow} hot={scene.heaterOn} />
+      <PipeRun points={returnPool} active={scene.poolOn} flow={scene.flow} hot={scene.heaterOn} />
 
       {scene.chlorPct > 0 && scene.flow > 0 ? (
         <Sparkles

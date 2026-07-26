@@ -12,12 +12,12 @@ import { Equipment } from "./Equipment";
 import { Pipes } from "./Pipes";
 import { Water } from "./Water";
 
-// Pool footprint: a 16x32 ft (2:1) rounded rect at ~3.33 ft/wu, centred at
-// [-1.9, 0.6] with the long axis on X.
-const POOL_POS: [number, number] = [-1.9, 0.6];
-const POOL_SIZE: [number, number] = [9.6, 4.8];
+// Pool footprint: a 16x32 ft (2:1) rounded rect at ~2.9 ft/wu, centred at
+// [-2.0, 0.3] with the long axis on X.
+const POOL_POS: [number, number] = [-2.0, 0.3];
+const POOL_SIZE: [number, number] = [11.0, 5.5];
 const POOL_RADIUS = 1.2;
-const CAM_POS: [number, number, number] = [7.9, 6.7, 11.3];
+const CAM_POS: [number, number, number] = [8.3, 7.0, 11.9];
 const CAM_TARGET: [number, number, number] = [0.1, -1.1, 0.1];
 
 // Seed the camera's starting pose once; OrbitControls owns it from there
@@ -87,7 +87,7 @@ function wallsGeometry(): THREE.ExtrudeGeometry {
   outer.holes.push(
     rrAt(0, 0, POOL_SIZE[0] - 0.12, POOL_SIZE[1] - 0.12, POOL_RADIUS - 0.06),
   );
-  return new THREE.ExtrudeGeometry(outer, { depth: 1.26, bevelEnabled: false });
+  return new THREE.ExtrudeGeometry(outer, { depth: 1.5, bevelEnabled: false });
 }
 
 export function PoolScene({ scene }: { scene: SceneState }) {
@@ -118,7 +118,7 @@ export function PoolScene({ scene }: { scene: SceneState }) {
       <mesh
         geometry={walls}
         rotation={[-Math.PI / 2, 0, 0]}
-        position={[POOL_POS[0], -1.51, POOL_POS[1]]}
+        position={[POOL_POS[0], -1.75, POOL_POS[1]]}
       >
         <meshStandardMaterial color="#b9d4d9" roughness={0.9} />
       </mesh>

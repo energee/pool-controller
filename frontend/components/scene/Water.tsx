@@ -173,12 +173,12 @@ void main() {
 
 const LIGHT_DIR = new THREE.Vector3(6, 10, 4).normalize(); // matches the scene's directionalLight
 
-// 16x32 ft pool at ~3.33 ft per world unit. Sim texels stay ~square (0.0375wu).
+// 16x32 ft pool at ~2.9 ft per world unit. Sim texels stay ~square (~0.043wu).
 const POOL = {
   res: [256, 128] as [number, number],
   segments: [96, 64] as [number, number],
-  depthEnds: 1.2, // 4 ft
-  depthMid: 1.5, // 5 ft
+  depthEnds: 1.38, // 4 ft
+  depthMid: 1.72, // 5 ft
   alphaRange: [0.42, 0.9] as [number, number],
   tileSize: 0.42,
   heightScale: 1.6,
@@ -186,7 +186,7 @@ const POOL = {
   // v=0 is the front edge; the run from the cell is underground), aimed down
   // the length of the pool like a real eyeball fitting, driving circulation
   // toward the front-right skimmer.
-  jets: [{ pos: [0.143, 0.08], dir: [0.75, 0.66] }] as Jet[],
+  jets: [{ pos: [0.2, 0.06], dir: [0.75, 0.66] }] as Jet[],
   jetLen: [1.0, 1.8] as [number, number],
   jetK: 10.5,
   jetOmega: 7.5,
