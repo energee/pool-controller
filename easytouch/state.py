@@ -51,6 +51,13 @@ from .intellichlor import (
 # every slot must be polled individually to discover the programmed schedules.
 SCHEDULE_SLOTS = 12
 
+# Declare the bus dead after this much silence. A live bus broadcasts controller
+# status every few seconds, so 30s of *nothing* means the link is up but carrying
+# no traffic (e.g. a TCP socket queued behind another client) — a failure a plain
+# connected-socket check can never see. Tripping it flips ``connected`` False,
+# surfaces an error, and forces the run loop to reconnect.
+STALE_AFTER = 30.0
+
 
 def _to_jsonable(obj) -> dict:
     """Convert a decoded dataclass to a JSON-able dict plus computed conveniences."""
@@ -108,6 +115,10 @@ class BusMonitor:
         self._sched_scan: list[int] = []
         self._next_sched_req = 0.0        # monotonic gate for the next scan request
         self._sched_req_gap = 1.0         # seconds between scan requests (0 in tests)
+        # Silence deadline: armed on (re)connect, pushed forward by every frame.
+        # Left at +inf until _run() opens the port so _poll_once()-driven tests
+        # are unaffected.
+        self._stale_deadline = float("inf")
 
     # --- lifecycle ---------------------------------------------------------
     def start(self) -> "BusMonitor":
@@ -127,6 +138,7 @@ class BusMonitor:
         try:
             self._et.open()
             self.connected = True
+            self._stale_deadline = time.monotonic() + STALE_AFTER
         except Exception as exc:                      # noqa: BLE001 - report, then retry
             self.error = str(exc)
             self.connected = False
@@ -144,6 +156,7 @@ class BusMonitor:
                     self._et.open()
                     self.connected = True
                     self.error = None
+                    self._stale_deadline = time.monotonic() + STALE_AFTER  # fresh grace period
                 except Exception as exc:              # noqa: BLE001
                     self.error = str(exc)
                     self.connected = False
@@ -159,10 +172,21 @@ class BusMonitor:
             return False
         self.connected = True
         self.error = None
+        saw_frame = False
         for pkt in self._et._feed(chunk):
+            saw_frame = True
             self._ingest(pkt)
         for frame in self._chlor_reader.feed(chunk):
+            saw_frame = True
             self._ingest_ic(frame)
+        if saw_frame:
+            self._stale_deadline = time.monotonic() + STALE_AFTER
+        elif time.monotonic() > self._stale_deadline:
+            # Open link, zero traffic: indistinguishable from healthy-but-idle at
+            # the socket level, so declare it dead and let _run() reconnect.
+            self.connected = False
+            self.error = f"no bus traffic for {STALE_AFTER:.0f}s; reconnecting"
+            return False
         self._maybe_refresh()
         self._service_sched_scan()
         self._service_rereads()

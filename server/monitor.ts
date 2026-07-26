@@ -36,6 +36,15 @@ export const SCHEDULE_SLOTS = 12;
 /** Poll period, matching pyserial's old blocking read timeout. */
 export const POLL_INTERVAL_MS = 300;
 
+/**
+ * Declare the bus dead after this much silence. A live bus broadcasts controller
+ * status every few seconds, so 30s of *nothing* means the link is up but carrying
+ * no traffic (e.g. a TCP socket queued behind another client) — the exact failure
+ * a plain socket-connected check can never see. Tripping it flips `connected`
+ * false, surfaces an error, and forces a reconnect.
+ */
+export const STALE_AFTER_S = 30;
+
 type Command = Packet | Buffer;
 
 export interface StateSnapshot {
@@ -93,6 +102,9 @@ export class BusMonitor {
   private schedScan: number[] = [];
   private nextSchedReq = 0; // ms gate for the next scan request
   schedReqGap = 1000; // ms between scan requests (0 in tests)
+  // Silence deadline: armed on (re)connect, pushed forward by every frame. Left
+  // at Infinity until start() so pollOnce()-driven tests are unaffected.
+  private staleDeadline = Infinity;
 
   constructor(
     port: string,
@@ -109,6 +121,7 @@ export class BusMonitor {
     try {
       this.bus.open();
       this.connected = true;
+      this.staleDeadline = performance.now() + STALE_AFTER_S * 1000;
     } catch (exc) {
       this.error = String((exc as Error).message ?? exc);
       this.connected = false;
@@ -141,6 +154,7 @@ export class BusMonitor {
       this.bus.open();
       this.connected = true;
       this.error = null;
+      this.staleDeadline = performance.now() + STALE_AFTER_S * 1000; // fresh grace period
     } catch (exc) {
       this.error = String((exc as Error).message ?? exc);
       this.connected = false;
@@ -165,8 +179,19 @@ export class BusMonitor {
     }
     this.connected = true;
     this.error = null;
-    for (const pkt of this.bus.feed(chunk)) this.ingest(pkt);
-    for (const frame of this.chlorReader.feed(chunk)) this.ingestIc(frame);
+    const pkts = this.bus.feed(chunk);
+    for (const pkt of pkts) this.ingest(pkt);
+    const frames = this.chlorReader.feed(chunk);
+    for (const frame of frames) this.ingestIc(frame);
+    if (pkts.length || frames.length) {
+      this.staleDeadline = performance.now() + STALE_AFTER_S * 1000;
+    } else if (performance.now() > this.staleDeadline) {
+      // Open link, zero traffic: indistinguishable from healthy-but-idle at the
+      // socket level, so declare it dead and let tick() force a reconnect.
+      this.connected = false;
+      this.error = `no bus traffic for ${STALE_AFTER_S}s; reconnecting`;
+      return false;
+    }
     this.maybeRefresh();
     this.serviceSchedScan();
     this.serviceRereads();

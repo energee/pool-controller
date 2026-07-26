@@ -51,6 +51,29 @@ def test_ingests_controller_status():
     assert C.Action.CONTROLLER_STATUS in st["raw"]
 
 
+def test_stale_bus_flips_connected_and_requests_reconnect():
+    # An open-but-silent link (e.g. a TCP socket queued behind another client)
+    # never errors, so staleness is the only way to detect it. Past the deadline
+    # _poll_once must report failure so _run() reconnects.
+    mon = BusMonitor("x")
+    mon._et._serial = StubSerial(REAL_STATUS)
+    assert mon._poll_once() is True                  # traffic arrives -> healthy
+    mon._stale_deadline = 0.0                        # silence elapsed
+    assert mon._poll_once() is False                 # empty read past the deadline
+    assert mon.connected is False
+    assert "no bus traffic" in mon.error
+
+
+def test_fresh_traffic_rearms_the_stale_deadline():
+    mon = BusMonitor("x")
+    mon._et._serial = StubSerial(REAL_STATUS, REAL_STATUS)
+    mon._poll_once()
+    mon._stale_deadline = 0.0
+    assert mon._poll_once() is True                  # second frame lands this poll
+    assert mon.connected is True
+    assert mon._stale_deadline > 0.0                 # pushed forward, not tripped
+
+
 def test_ingests_heat_and_schedule():
     mon = BusMonitor("x")
     mon._et._serial = StubSerial(_heat_frame() + _sched_frame())

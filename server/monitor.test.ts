@@ -233,6 +233,26 @@ describe("refresh", () => {
   });
 });
 
+describe("staleness", () => {
+  test("a silent bus past the deadline flips connected and asks to reconnect", () => {
+    const { mon } = monitorWith(STATUS_FRAME);
+    mon.pollOnce(); // traffic arrives -> healthy
+    expect(mon.connected).toBe(true);
+    (mon as unknown as { staleDeadline: number }).staleDeadline = 0; // silence elapsed
+    expect(mon.pollOnce()).toBe(false); // -> tick() would reconnect
+    expect(mon.connected).toBe(false);
+    expect(mon.error).toContain("no bus traffic");
+  });
+
+  test("fresh traffic re-arms the deadline instead of tripping it", () => {
+    const { mon } = monitorWith(STATUS_FRAME, STATUS_FRAME);
+    mon.pollOnce();
+    (mon as unknown as { staleDeadline: number }).staleDeadline = 0;
+    expect(mon.pollOnce()).toBe(true); // second frame arrives on this poll
+    expect(mon.connected).toBe(true);
+  });
+});
+
 describe("waitFor", () => {
   test("returns the state once the predicate holds", async () => {
     const { mon } = monitorWith(STATUS_FRAME);
