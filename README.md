@@ -284,8 +284,13 @@ at runtime** — only after editing `frontend/` (run `bun run build`). It polls
 `GET /state` every ~3s (no manual refresh button — the header pill shows
 freshness). There is no separate summary strip: the controls are the readings.
 
-- A **live 3D system scene** shows pool/spa water, pump, filter, heater,
-  chlorinator, and animated flow driven by the `/state` poll.
+- A **live 3D system scene** (top card) renders a backyard-style pool and
+  hot-tub spa with moving water, plus the pump, filter, heater, and
+  chlorinator connected by pipes. Everything animates from the `/state`
+  poll: ripple and pipe-flow speed scale with pump GPM/RPM, the active
+  pool/spa branch carries the flow, the heater and chlorinator glow when
+  on, the spa bubbles, and hovering equipment shows its live numbers.
+  Stale or disconnected data freezes and desaturates the scene.
 
 A freeze-protect / service-mode banner appears only when active; below it, one
 flat titled section per control surface (no card chrome — inner tiles and

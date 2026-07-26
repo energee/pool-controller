@@ -444,3 +444,28 @@ git commit -m "feat(scene): build static bundle and document the 3D system card"
 - Spec coverage: placement/data-flow → Tasks 1–2; scene bodies/water → Task 3; equipment + effects + tooltips + temps → Task 4; pipes/flow/valves/chlor sparkle → Task 5; stale overlay + frameloop pause → Task 2; WebGL guard → Task 2; perf (dpr cap, no shadows, ortho) → Tasks 2–5; docs/build → Task 6.
 - Deliberate cut (ponytail): no per-component 3D unit tests — `deriveSceneState` is the tested seam; the scene is verified visually by the orchestrator against the mock bus after codex finishes.
 - Type consistency: `SceneState` field names in Tasks 3–5 match the Task 1 interface verbatim.
+
+---
+
+## Addendum (post-implementation, same day)
+
+Mid-build the design pivoted on request: the scene is now styled after a real
+backyard pool (reference photo) — rounded-rect turquoise pool with white
+coping sunk into a light concrete deck, dark hot-tub spa, perspective camera —
+rather than the low-poly ortho schematic above. Executor also changed: codex
+implemented Tasks 0–6 as planned; the realistic rework (Water/PoolScene/Pipes
+rewrites, Equipment restyle) was done directly in-session with a headless
+Chrome screenshot loop against the mock bus.
+
+Notable fixes found during visual verification:
+- The plan's fragment shader carried `precision mediump float;`, which
+  mismatches the vertex stage's implicit highp `uFlow` and fails program
+  validation (three injects precision itself) — this made all water invisible.
+- drei `Line` fat-lines rendered as giant screen-space quads in this setup;
+  pipes are now real `TubeGeometry` meshes with a scrolling dash texture.
+- `deriveSceneState` treats `gpm: 0` as "no reading" and falls back to RPM
+  (pumps in RPM mode — and the mock bus — report gpm 0 while running).
+- r3f only mounts the GL subtree once the tab gets an animation frame, so a
+  hidden tab renders nothing — verification must use a visible or headless
+  page, and the camera is pinned per-frame because Canvas camera props are
+  re-applied on every poll re-render.

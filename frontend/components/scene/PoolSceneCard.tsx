@@ -1,6 +1,7 @@
 // Full-width dashboard card hosting the live 3D system scene. Owns the WebGL
-// guard, the r3f Canvas (fixed isometric ortho camera), and the stale overlay;
-// all live-state interpretation happens in deriveSceneState.
+// guard, the r3f Canvas (fixed perspective camera, aimed by PoolScene's
+// CameraRig), and the stale overlay; all live-state interpretation happens in
+// deriveSceneState.
 import * as React from "react";
 import { Canvas } from "@react-three/fiber";
 
@@ -30,9 +31,9 @@ export function PoolSceneCard({
   return (
     <DashCard title="System" className="col-span-full">
       <div className="relative h-[380px]">
+        {/* perspective camera for the photo-like view; CameraRig aims it */}
         <Canvas
-          orthographic
-          camera={{ position: [10, 10, 10], zoom: 46, near: 0.1, far: 100 }}
+          camera={{ fov: 34, near: 0.1, far: 100 }}
           dpr={[1, 2]}
           gl={{ antialias: true, alpha: true }}
           frameloop={scene.stale ? "demand" : "always"}

@@ -27,7 +27,7 @@ export function Equipment({ scene }: { scene: SceneState }) {
     if (heaterMaterial.current) {
       heaterMaterial.current.emissiveIntensity = THREE.MathUtils.lerp(
         heaterMaterial.current.emissiveIntensity,
-        scene.heaterOn ? 0.9 : 0,
+        scene.heaterOn ? 0.3 : 0,
         Math.min(dt * 4, 1),
       );
     }
@@ -63,7 +63,7 @@ export function Equipment({ scene }: { scene: SceneState }) {
 
   return (
     <group>
-      <group position={[0.6, 0, -2.3]} {...hover("pump")}>
+      <group position={[3.6, 0, -2.2]} {...hover("pump")}>
         <mesh position={[0, 0.25, 0]}>
           <cylinderGeometry args={[0.35, 0.35, 0.5, 24]} />
           <meshStandardMaterial color="#637487" />
@@ -88,7 +88,7 @@ export function Equipment({ scene }: { scene: SceneState }) {
         ) : null}
       </group>
 
-      <group position={[2.0, 0, -2.3]} {...hover("filter")}>
+      <group position={[4.6, 0, -2.2]} {...hover("filter")}>
         <mesh position={[0, 0.45, 0]}>
           <cylinderGeometry args={[0.42, 0.42, 0.9, 24]} />
           <meshStandardMaterial color="#aab4be" />
@@ -103,7 +103,7 @@ export function Equipment({ scene }: { scene: SceneState }) {
         ) : null}
       </group>
 
-      <group position={[3.5, 0, -2.3]} {...hover("heater")}>
+      <group position={[5.7, 0, -2.2]} {...hover("heater")}>
         <mesh position={[0, 0.35, 0]}>
           <boxGeometry args={[1.0, 0.7, 0.8]} />
           <meshStandardMaterial
@@ -115,12 +115,12 @@ export function Equipment({ scene }: { scene: SceneState }) {
         </mesh>
         {scene.heaterOn ? (
           <Sparkles
-            count={12}
-            size={2}
-            scale={[0.8, 1.2, 0.8]}
-            position={[0, 1.15, 0]}
+            count={8}
+            size={1.4}
+            scale={[0.5, 0.7, 0.5]}
+            position={[0, 1.0, 0]}
             color="#e8edf2"
-            speed={0.4}
+            speed={0.35}
           />
         ) : null}
         <Html center distanceFactor={14} position={[0, -0.16, 0]}>
@@ -135,7 +135,7 @@ export function Equipment({ scene }: { scene: SceneState }) {
         ) : null}
       </group>
 
-      <group position={[4.8, 0, -2.3]} {...hover("chlorinator")}>
+      <group position={[6.7, 0, -2.2]} {...hover("chlorinator")}>
         <mesh position={[0, 0.3, 0]} rotation={[0, 0, Math.PI / 2]}>
           <capsuleGeometry args={[0.18, 0.7, 8, 16]} />
           <meshStandardMaterial

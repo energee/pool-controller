@@ -65,3 +65,17 @@ describe("deriveSceneState", () => {
     expect(deriveSceneState({ ...base, age: null }, true).stale).toBe(false);
   });
 });
+
+// Real pumps sometimes report gpm 0 while running in RPM mode (the mock bus
+// does too) — a zero GPM must fall back to RPM instead of reading as no flow.
+test("zero gpm with live rpm falls back to rpm", () => {
+  const s = deriveSceneState(
+    {
+      age: 2,
+      status: { circuits_on: [6] },
+      pumps: { "1": { pump: 1, watts: 1250, rpm: 2750, gpm: 0 } },
+    },
+    true,
+  );
+  expect(s.flow).toBeCloseTo(2750 / 3450);
+});

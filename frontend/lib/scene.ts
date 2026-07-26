@@ -48,14 +48,13 @@ export function deriveSceneState(
     pumps[0] ??
     null;
 
+  // Prefer measured GPM, but a pump in RPM mode can report gpm 0 while
+  // spinning — treat 0 as "no reading" and derive flow from RPM instead.
   let flow: number;
   if (pump) {
-    flow =
-      pump.gpm != null
-        ? Math.min(pump.gpm / 100, 1)
-        : pump.rpm != null
-          ? Math.min(pump.rpm / 3450, 1)
-          : 0;
+    if (pump.gpm) flow = Math.min(pump.gpm / 100, 1);
+    else if (pump.rpm) flow = Math.min(pump.rpm / 3450, 1);
+    else flow = 0;
   } else {
     flow = poolOn || spaOn ? 0.5 : 0;
   }
