@@ -72,36 +72,39 @@ function PipeRun({
 }
 
 // Waypoints (y=0.1 ground runs). Pool sits around [-1.9, z 0.6]; the
-// equipment pad along z=-2.2 east of it.
-// Suction rises off the deck into the pump's white inlet stub.
+// equipment pad sits front-right at z=3.3.
+// Suction from the pool's east corner rises into the pump's white inlet stub.
 const suctionPool: Point[] = [
-  [2.2, 0.1, -2.0],
-  [2.7, 0.1, -2.15],
-  [2.95, 0.1, -2.2],
-  [3.14, 0.23, -2.2],
+  [3.05, 0.1, 1.9],
+  [3.3, 0.1, 2.6],
+  [3.38, 0.1, 3.3],
+  [3.54, 0.23, 3.3],
 ];
 
 // Pump discharge (top stub) over to the filter's upper inlet union.
 const pumpToFilter: Point[] = [
-  [3.57, 0.52, -2.2],
-  [3.75, 0.45, -2.12],
-  [4.1, 0.32, -2.18],
-  [4.33, 0.32, -2.2],
+  [3.97, 0.52, 3.3],
+  [4.15, 0.45, 3.38],
+  [4.5, 0.32, 3.32],
+  [4.73, 0.32, 3.3],
 ];
 
-// Filter's lower outlet union down and around to the heater and chlorinator.
+// Filter's lower outlet union down and along the pool side of the pad to the
+// heater and chlorinator.
 const filterToChlor: Point[] = [
-  [4.33, 0.18, -2.2],
-  [4.15, 0.14, -2.05],
-  [4.5, 0.1, -1.9],
-  [6.3, 0.1, -1.9],
-  [6.7, 0.1, -2.2],
+  [4.73, 0.18, 3.3],
+  [4.55, 0.14, 3.12],
+  [4.9, 0.1, 2.95],
+  [6.7, 0.1, 2.95],
+  [7.1, 0.1, 3.3],
 ];
 
+// Behind the pad and back west to the return inlet on the front edge.
 const returnPool: Point[] = [
-  [6.7, 0.1, -2.2],
-  [7.1, 0.1, -1.2],
-  [7.1, 0.1, 3.9],
+  [7.1, 0.1, 3.3],
+  [7.35, 0.1, 3.9],
+  [6.8, 0.1, 4.35],
+  [1.6, 0.1, 4.35],
   [0.9, 0.1, 3.9],
   [0.9, 0.1, 3.15],
 ];
@@ -120,7 +123,7 @@ export function Pipes({ scene }: { scene: SceneState }) {
           size={1.5}
           color="#5eead4"
           scale={[0.5, 0.4, 1.6]}
-          position={[7.1, 0.3, -0.5]}
+          position={[7.25, 0.3, 3.7]}
         />
       ) : null}
     </group>
