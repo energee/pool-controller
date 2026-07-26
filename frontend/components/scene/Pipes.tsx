@@ -48,7 +48,7 @@ function PipeRun({
     return { curve: c, length: c.getLength() };
   }, [points]);
   const texture = React.useMemo(() => {
-    const t = makeStripeTexture(hot ? [255, 122, 84] : [79, 195, 247]);
+    const t = makeStripeTexture(hot ? [235, 55, 40] : [79, 195, 247]);
     t.repeat.set(length / 0.7, 1); // one dash+gap every ~0.7 world units
     return t;
   }, [length, hot]);
@@ -63,14 +63,14 @@ function PipeRun({
         <tubeGeometry args={[curve, 48, 0.06, 10, false]} />
         {ghost ? (
           <meshBasicMaterial
-            color={hot ? "#c9705a" : "#9aa2ac"}
+            color={hot ? "#c23327" : "#9aa2ac"}
             transparent
             opacity={0.3}
             depthTest={false}
             depthWrite={false}
           />
         ) : (
-          <meshStandardMaterial color={hot ? "#c9705a" : "#aab2bb"} roughness={0.6} />
+          <meshStandardMaterial color={hot ? "#c23327" : "#aab2bb"} roughness={0.6} />
         )}
       </mesh>
       <mesh visible={active && flow > 0} renderOrder={ghost ? 6 : 0}>
