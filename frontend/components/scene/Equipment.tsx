@@ -16,6 +16,7 @@ const tooltipClass =
 export function Equipment({ scene }: { scene: SceneState }) {
   const [hovered, setHovered] = React.useState<Unit | null>(null);
   const impeller = React.useRef<THREE.Group>(null);
+  const lcdMaterial = React.useRef<THREE.MeshStandardMaterial>(null);
   const heaterMaterial = React.useRef<THREE.MeshStandardMaterial>(null);
   const chlorMaterial = React.useRef<THREE.MeshStandardMaterial>(null);
   useCursor(hovered !== null);
@@ -23,6 +24,13 @@ export function Equipment({ scene }: { scene: SceneState }) {
   useFrame((_, dt) => {
     if (impeller.current && scene.flow > 0) {
       impeller.current.rotation.y += dt * (2 + 10 * scene.flow);
+    }
+    if (lcdMaterial.current) {
+      lcdMaterial.current.emissiveIntensity = THREE.MathUtils.lerp(
+        lcdMaterial.current.emissiveIntensity,
+        scene.flow > 0 ? 1.2 : 0,
+        Math.min(dt * 4, 1),
+      );
     }
     if (heaterMaterial.current) {
       heaterMaterial.current.emissiveIntensity = THREE.MathUtils.lerp(
@@ -63,19 +71,83 @@ export function Equipment({ scene }: { scene: SceneState }) {
 
   return (
     <group>
+      {/* Pentair SuperFlo VS: almond strainer pot (clear lid, basket spinning
+          when running) + volute, white PVC suction/discharge stubs, finned
+          motor, and the VS drive box whose LCD lights with flow. Suction
+          enters from the west (-x), the motor points east toward the pad. */}
       <group position={[3.6, 0, -2.2]} {...hover("pump")}>
-        <mesh position={[0, 0.25, 0]}>
-          <cylinderGeometry args={[0.35, 0.35, 0.5, 24]} />
-          <meshStandardMaterial color="#637487" />
+        <mesh position={[0, 0.05, 0]}>
+          <boxGeometry args={[0.88, 0.07, 0.34]} />
+          <meshStandardMaterial color="#cfc7b2" roughness={0.85} />
         </mesh>
-        <group ref={impeller} position={[0, 0.54, 0]}>
+        {/* strainer pot + lobed clamp ring + clear lid */}
+        <mesh position={[-0.28, 0.23, 0]}>
+          <cylinderGeometry args={[0.155, 0.145, 0.3, 20]} />
+          <meshStandardMaterial color="#e9e1cc" roughness={0.75} />
+        </mesh>
+        <mesh position={[-0.28, 0.39, 0]}>
+          <cylinderGeometry args={[0.195, 0.195, 0.05, 8]} />
+          <meshStandardMaterial color="#ded5bf" roughness={0.75} />
+        </mesh>
+        <group ref={impeller} position={[-0.28, 0.36, 0]}>
           {[0, Math.PI / 2, Math.PI, (3 * Math.PI) / 2].map((rotation) => (
-            <mesh key={rotation} rotation={[0, rotation, 0]} position={[0, 0, 0.13]}>
-              <boxGeometry args={[0.1, 0.06, 0.3]} />
-              <meshStandardMaterial color="#d2dae2" />
+            <mesh key={rotation} rotation={[0, rotation, 0]} position={[0, 0, 0.06]}>
+              <boxGeometry args={[0.05, 0.03, 0.11]} />
+              <meshStandardMaterial color="#c9bfa6" />
             </mesh>
           ))}
         </group>
+        <mesh position={[-0.28, 0.425, 0]}>
+          <cylinderGeometry args={[0.125, 0.125, 0.025, 20]} />
+          <meshStandardMaterial
+            color="#b7cdd6"
+            roughness={0.15}
+            transparent
+            opacity={0.45}
+          />
+        </mesh>
+        {/* white PVC suction stub into the pot */}
+        <mesh position={[-0.47, 0.23, 0]} rotation={[0, 0, Math.PI / 2]}>
+          <cylinderGeometry args={[0.055, 0.055, 0.16, 12]} />
+          <meshStandardMaterial color="#f2f2ee" roughness={0.4} />
+        </mesh>
+        {/* volute body linking pot to motor */}
+        <mesh position={[-0.03, 0.22, 0]} rotation={[0, 0, Math.PI / 2]}>
+          <cylinderGeometry args={[0.13, 0.13, 0.28, 16]} />
+          <meshStandardMaterial color="#e9e1cc" roughness={0.75} />
+        </mesh>
+        {/* vertical discharge: union nut + white pipe stub */}
+        <mesh position={[-0.03, 0.38, 0]}>
+          <cylinderGeometry args={[0.075, 0.075, 0.06, 12]} />
+          <meshStandardMaterial color="#ded5bf" roughness={0.75} />
+        </mesh>
+        <mesh position={[-0.03, 0.49, 0]}>
+          <cylinderGeometry args={[0.05, 0.05, 0.16, 12]} />
+          <meshStandardMaterial color="#f2f2ee" roughness={0.4} />
+        </mesh>
+        {/* finned motor can */}
+        <mesh position={[0.27, 0.22, 0]} rotation={[0, 0, Math.PI / 2]}>
+          <cylinderGeometry args={[0.135, 0.135, 0.36, 20]} />
+          <meshStandardMaterial color="#ddd4bf" roughness={0.6} />
+        </mesh>
+        {/* VS drive box with black keypad + LCD (lit when running) */}
+        <mesh position={[0.27, 0.45, 0]}>
+          <boxGeometry args={[0.26, 0.18, 0.24]} />
+          <meshStandardMaterial color="#e9e1cc" roughness={0.75} />
+        </mesh>
+        <mesh position={[0.27, 0.545, 0]}>
+          <boxGeometry args={[0.15, 0.012, 0.15]} />
+          <meshStandardMaterial color="#1c1e20" roughness={0.5} />
+        </mesh>
+        <mesh position={[0.24, 0.554, -0.03]}>
+          <boxGeometry args={[0.06, 0.006, 0.035]} />
+          <meshStandardMaterial
+            ref={lcdMaterial}
+            color="#2a3d47"
+            emissive="#7fc4e8"
+            emissiveIntensity={0}
+          />
+        </mesh>
         <Html center distanceFactor={14} position={[0, -0.16, 0]}>
           <div className={labelClass}>PUMP</div>
         </Html>
