@@ -46,6 +46,21 @@ uniform vec2 uAlphaRange;
 varying vec2 vPos;
 varying vec3 vWorld;
 
+uniform vec2 uRR;    // rounded-rect half extents
+uniform vec2 uRROff; // rr center offset within the (wider) plane
+uniform vec2 uBayC;  // stair-bay rect center (local)
+uniform vec2 uBayH;  // stair-bay half extents; x<=0 disables
+float poolSDF(vec2 p) {
+  vec2 q = abs(p - uRROff) - (uRR - vec2(uRadius));
+  float d = length(max(q, vec2(0.0))) - uRadius;
+  if (uBayH.x > 0.0) {
+    vec2 b = abs(p - uBayC) - uBayH;
+    float db = length(max(b, vec2(0.0))) + min(max(b.x, b.y), 0.0);
+    d = min(d, db);
+  }
+  return d;
+}
+
 // Only ever seen AS A REFLECTION, so it reads as outdoor daylight over the
 // transparent-canvas dark card without any skybox mesh.
 vec3 skyColor(vec3 ray) {
@@ -56,8 +71,7 @@ vec3 skyColor(vec3 ray) {
 }
 
 void main() {
-  vec2 q = abs(vPos) - (uHalf - vec2(uRadius));
-  float d = length(max(q, vec2(0.0))) - uRadius;
+  float d = poolSDF(vPos);
   if (d > 0.0) discard;
 
   vec2 uv = vPos / (2.0 * uHalf) + 0.5;
@@ -79,7 +93,7 @@ void main() {
 
   // Both ends are the 4' shallows, the middle is the 5' deep — mirror the
   // floor's depth profile in the body color.
-  float ends = pow(clamp(abs(vPos.x) / uHalf.x, 0.0, 1.0), 2.0);
+  float ends = pow(clamp(abs(vPos.x - uRROff.x) / uRR.x, 0.0, 1.0), 2.0);
   float edge = smoothstep(-0.45, 0.0, d);
   vec3 body = mix(uDeep, uShallow, 0.20 + 0.35 * ends + 0.30 * edge);
 
@@ -99,14 +113,15 @@ void main() {
 // middle (1.2/1.5 wu), blended parabolically along the long axis. The mesh
 // sits at water level and each vertex is pushed down by its local depth.
 const FLOOR_VERT = /* glsl */ `
-uniform vec2 uHalf;
+uniform vec2 uRR;
+uniform vec2 uRROff;
 uniform float uDepthEnds;
 uniform float uDepthMid;
 varying vec2 vPos;
 varying float vDepth;
 void main() {
   vPos = position.xy;
-  float t = clamp(abs(position.x) / uHalf.x, 0.0, 1.0);
+  float t = clamp(abs(position.x - uRROff.x) / uRR.x, 0.0, 1.0);
   vDepth = uDepthMid - (uDepthMid - uDepthEnds) * t * t;
   gl_Position = projectionMatrix * modelViewMatrix
     * vec4(position.x, position.y, -vDepth, 1.0);
@@ -125,6 +140,21 @@ uniform float uTileSize;
 varying vec2 vPos;
 varying float vDepth;
 
+uniform vec2 uRR;    // rounded-rect half extents
+uniform vec2 uRROff; // rr center offset within the (wider) plane
+uniform vec2 uBayC;  // stair-bay rect center (local)
+uniform vec2 uBayH;  // stair-bay half extents; x<=0 disables
+float poolSDF(vec2 p) {
+  vec2 q = abs(p - uRROff) - (uRR - vec2(uRadius));
+  float d = length(max(q, vec2(0.0))) - uRadius;
+  if (uBayH.x > 0.0) {
+    vec2 b = abs(p - uBayC) - uBayH;
+    float db = length(max(b, vec2(0.0))) + min(max(b.x, b.y), 0.0);
+    d = min(d, db);
+  }
+  return d;
+}
+
 float hash21(vec2 p) {
   p = fract(p * vec2(234.34, 435.345));
   p += dot(p, p + 34.23);
@@ -132,8 +162,7 @@ float hash21(vec2 p) {
 }
 
 void main() {
-  vec2 q = abs(vPos) - (uHalf - vec2(uRadius));
-  float d = length(max(q, vec2(0.0))) - uRadius;
+  float d = poolSDF(vPos);
   if (d > 0.0) discard;
 
   vec2 uv = vPos / (2.0 * uHalf) + 0.5;
@@ -183,11 +212,11 @@ const POOL = {
   // One pressurized return jet entering at the pool's FRONT-LEFT (sim UV
   // v=0 is the front edge; the run from the cell is underground), firing
   // STRAIGHT into the pool, perpendicular to the wall.
-  jets: [{ pos: [0.275, 0.05], dir: [0, 1] }] as Jet[],
+  jets: [{ pos: [0.347, 0.05], dir: [0, 1] }] as Jet[],
   jetLen: [1.0, 1.8] as [number, number],
-  jetK: 10.5,
+  jetK: 13,
   jetOmega: 7.5,
-  jetAmp: 0.009,
+  jetAmp: 0.015,
   damping: [0.986, 0.997] as [number, number],
   dropRadius: [0.22, 0.18] as [number, number],
   rateScale: 1,
@@ -198,20 +227,32 @@ export function Water({
   radius,
   flow,
   position,
+  bay,
   shallow = "#8fdcec",
   deep = "#1f86b4",
 }: {
-  size: [number, number];
+  size: [number, number]; // the rounded-rect footprint
   radius: number; // corner radius; use half the size for a round surface
   flow: number;
-  position: [number, number, number];
+  position: [number, number, number]; // rounded-rect center at the waterline
+  bay?: [number, number]; // stair bay on the -x side: [depth out, width]
   shallow?: string;
   deep?: string;
 }) {
   const v = POOL;
+  const bayD = bay?.[0] ?? 0;
+  // The plane widens westward to hold the bay's water; SDF unions the shapes.
+  const plane: [number, number] = [size[0] + bayD, size[1]];
+  const rrOff: [number, number] = [bayD / 2, 0];
+  const bayC: [number, number] = [-size[0] / 2, 0];
+  const bayH: [number, number] = bay ? [bay[0] / 2, bay[1] / 2] : [0, 0];
   const { simRef, flowRef } = useWaterSim({
     res: v.res,
-    worldSize: size,
+    worldSize: plane,
+    rr: [size[0] / 2, size[1] / 2],
+    rrOff,
+    bayC,
+    bayH,
     radius,
     flow,
     heightScale: v.heightScale,
@@ -228,11 +269,18 @@ export function Water({
   const surface = React.useRef<THREE.ShaderMaterial>(null);
   const floor = React.useRef<THREE.ShaderMaterial>(null);
   const uniforms = React.useMemo(() => {
-    const half = new THREE.Vector2(size[0] / 2, size[1] / 2);
+    const half = new THREE.Vector2(plane[0] / 2, plane[1] / 2);
+    const sdf = {
+      uRR: { value: new THREE.Vector2(size[0] / 2, size[1] / 2) },
+      uRROff: { value: new THREE.Vector2(...rrOff) },
+      uBayC: { value: new THREE.Vector2(...bayC) },
+      uBayH: { value: new THREE.Vector2(...bayH) },
+    };
     return {
       surface: {
         uSim: { value: null as THREE.Texture | null },
         uHalf: { value: half },
+        ...sdf,
         uRadius: { value: radius },
         uHeightScale: { value: v.heightScale },
         uTime: { value: 0 },
@@ -245,6 +293,7 @@ export function Water({
       floor: {
         uSim: { value: null as THREE.Texture | null },
         uHalf: { value: half },
+        ...sdf,
         uRadius: { value: radius },
         uDelta: { value: new THREE.Vector2(1 / v.res[0], 1 / v.res[1]) },
         uLight: { value: LIGHT_DIR },
@@ -280,7 +329,7 @@ export function Water({
         />
       </mesh>
       <mesh rotation={[-Math.PI / 2, 0, 0]}>
-        <planeGeometry args={[size[0], size[1], ...v.segments]} />
+        <planeGeometry args={[plane[0], plane[1], ...v.segments]} />
         <shaderMaterial
           ref={surface}
           uniforms={uniforms.surface}

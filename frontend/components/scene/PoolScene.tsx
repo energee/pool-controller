@@ -17,6 +17,9 @@ import { Water } from "./Water";
 const POOL_POS: [number, number] = [-2.5, 0.2];
 const POOL_SIZE: [number, number] = [12.6, 6.3];
 const POOL_RADIUS = 1.2;
+// Stair bay jutting out of the pool's west end (like the real fiberglass
+// step alcove): [depth outward, width along the end].
+const BAY: [number, number] = [1.4, 3.4];
 const CAM_POS: [number, number, number] = [8.8, 7.6, 12.6];
 const CAM_TARGET: [number, number, number] = [-0.8, -1.15, 0.1];
 
@@ -46,10 +49,18 @@ function CameraRig() {
   );
 }
 
-// Rounded-rect path centred at (cx, cy) in shape space. NOTE: these shapes are
-// rendered rotated -PI/2 about X, which maps shape +y to world -z — so a hole
-// at world z = +Z is built at cy = -Z.
-function rrAt(cx: number, cy: number, w: number, h: number, r: number): THREE.Shape {
+// Rounded-rect path centred at (cx, cy) in shape space, optionally with a
+// rectangular stair bay protruding from the west (-x) edge (bay = [depth,
+// width]). NOTE: these shapes are rendered rotated -PI/2 about X, which maps
+// shape +y to world -z — so a hole at world z = +Z is built at cy = -Z.
+function rrAt(
+  cx: number,
+  cy: number,
+  w: number,
+  h: number,
+  r: number,
+  bay?: [number, number],
+): THREE.Shape {
   const s = new THREE.Shape();
   const x = cx - w / 2,
     y = cy - h / 2;
@@ -60,6 +71,14 @@ function rrAt(cx: number, cy: number, w: number, h: number, r: number): THREE.Sh
   s.absarc(x + w - r, y + h - r, r, 0, Math.PI / 2, false);
   s.lineTo(x + r, y + h);
   s.absarc(x + r, y + h - r, r, Math.PI / 2, Math.PI, false);
+  if (bay) {
+    // descend the west edge, detouring around the protruding bay
+    const [bd, bw] = bay;
+    s.lineTo(x, cy + bw / 2);
+    s.lineTo(x - bd, cy + bw / 2);
+    s.lineTo(x - bd, cy - bw / 2);
+    s.lineTo(x, cy - bw / 2);
+  }
   s.lineTo(x, y + r);
   s.absarc(x + r, y + r, r, Math.PI, (3 * Math.PI) / 2, false);
   return s;
@@ -67,8 +86,11 @@ function rrAt(cx: number, cy: number, w: number, h: number, r: number): THREE.Sh
 
 // Flat rounded-rect ring (outer minus inner) used for the pool coping.
 function copingGeometry(): THREE.ExtrudeGeometry {
-  const outer = rrAt(0, 0, POOL_SIZE[0] + 0.7, POOL_SIZE[1] + 0.7, POOL_RADIUS + 0.3);
-  outer.holes.push(rrAt(0, 0, POOL_SIZE[0], POOL_SIZE[1], POOL_RADIUS));
+  const outer = rrAt(0, 0, POOL_SIZE[0] + 0.7, POOL_SIZE[1] + 0.7, POOL_RADIUS + 0.3, [
+    BAY[0] + 0.35,
+    BAY[1] + 0.7,
+  ]);
+  outer.holes.push(rrAt(0, 0, POOL_SIZE[0], POOL_SIZE[1], POOL_RADIUS, BAY));
   return new THREE.ExtrudeGeometry(outer, { depth: 0.03, bevelEnabled: false });
 }
 
@@ -78,7 +100,7 @@ function deckGeometry(): THREE.ExtrudeGeometry {
   // Extra ground west of the pool (stairs side): deck spans x -11..8.
   const outer = rrAt(-1.5, 0, 19, 9.6, 0.4);
   outer.holes.push(
-    rrAt(POOL_POS[0], -POOL_POS[1], POOL_SIZE[0], POOL_SIZE[1], POOL_RADIUS),
+    rrAt(POOL_POS[0], -POOL_POS[1], POOL_SIZE[0], POOL_SIZE[1], POOL_RADIUS, BAY),
   );
   return new THREE.ExtrudeGeometry(outer, { depth: 2.2, bevelEnabled: false });
 }
@@ -87,9 +109,15 @@ function deckGeometry(): THREE.ExtrudeGeometry {
 // of the 4'-5'-4' floor (the opaque floor hides the excess at the ends). Inset
 // a hair inside the deck cutout so the liner faces never z-fight the deck.
 function wallsGeometry(): THREE.ExtrudeGeometry {
-  const outer = rrAt(0, 0, POOL_SIZE[0] - 0.02, POOL_SIZE[1] - 0.02, POOL_RADIUS - 0.01);
+  const outer = rrAt(0, 0, POOL_SIZE[0] - 0.02, POOL_SIZE[1] - 0.02, POOL_RADIUS - 0.01, [
+    BAY[0] - 0.01,
+    BAY[1] - 0.02,
+  ]);
   outer.holes.push(
-    rrAt(0, 0, POOL_SIZE[0] - 0.16, POOL_SIZE[1] - 0.16, POOL_RADIUS - 0.08),
+    rrAt(0, 0, POOL_SIZE[0] - 0.16, POOL_SIZE[1] - 0.16, POOL_RADIUS - 0.08, [
+      BAY[0] - 0.08,
+      BAY[1] - 0.16,
+    ]),
   );
   return new THREE.ExtrudeGeometry(outer, { depth: 2.1, bevelEnabled: false });
 }
@@ -161,14 +189,14 @@ export function PoolScene({ scene }: { scene: SceneState }) {
         rotation={[-Math.PI / 2, 0, 0]}
         position={[0, -2.2, 0]}
       />
-      {/* molded white stair bay at the shallow end: three wide treads like the
-          real pool's fiberglass steps */}
+      {/* molded white treads inside the protruding stair bay, descending east
+          into the pool like the real fiberglass steps */}
       {[0, 1, 2].map((i) => {
         const top = -0.22 - 0.38 * i;
         const h = top + 1.65;
         return (
-          <mesh key={i} position={[-8.5 + 0.55 * i, top - h / 2, POOL_POS[1]]}>
-            <boxGeometry args={[0.55, h, 3.4]} />
+          <mesh key={i} position={[-9.95 + 0.47 * i, top - h / 2, POOL_POS[1]]}>
+            <boxGeometry args={[0.47, h, BAY[1] - 0.2]} />
             <meshStandardMaterial color="#f4f3ee" roughness={0.8} />
           </mesh>
         );
@@ -194,8 +222,9 @@ export function PoolScene({ scene }: { scene: SceneState }) {
       <Water
         size={POOL_SIZE}
         radius={POOL_RADIUS}
+        bay={BAY}
         flow={scene.poolOn ? scene.flow : 0}
-        position={[POOL_POS[0], 0.055, POOL_POS[1]]}
+        position={[POOL_POS[0], -0.1, POOL_POS[1]]}
       />
 
       {/* equipment pad slab */}
@@ -205,7 +234,7 @@ export function PoolScene({ scene }: { scene: SceneState }) {
       </mesh>
 
       {/* skimmer mouth in the pool wall at the waterline, below the lid */}
-      <mesh position={[1.7, -0.02, POOL_POS[1] + POOL_SIZE[1] / 2 - 0.02]}>
+      <mesh position={[1.7, -0.12, POOL_POS[1] + POOL_SIZE[1] / 2 - 0.02]}>
         <boxGeometry args={[0.5, 0.14, 0.08]} />
         <meshStandardMaterial color="#2e3a40" roughness={0.8} />
       </mesh>

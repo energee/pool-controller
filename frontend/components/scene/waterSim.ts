@@ -76,6 +76,10 @@ uniform vec2 uDelta;
 uniform float uDamping;
 uniform vec2 uHalf;
 uniform float uRadius;
+uniform vec2 uRR;
+uniform vec2 uRROff;
+uniform vec2 uBayC;
+uniform vec2 uBayH;
 varying vec2 vUv;
 void main() {
   vec4 info = texture2D(uPrev, vUv);
@@ -86,11 +90,15 @@ void main() {
   info.g += (avg - info.r) * 2.0; // acceleration at the CFL stability edge
   info.g *= uDamping;
   info.r += info.g;
-  // Soft absorbing band at the actual rounded-rect wall — clamp-to-edge alone
-  // would reflect ripples off the invisible texture rectangle, not the corners.
+  // Soft absorbing band at the actual pool wall (rounded rect + stair bay) —
+  // clamp-to-edge alone would reflect off the invisible texture rectangle.
   vec2 p = (vUv - 0.5) * 2.0 * uHalf;
-  vec2 q = abs(p) - (uHalf - vec2(uRadius));
+  vec2 q = abs(p - uRROff) - (uRR - vec2(uRadius));
   float d = length(max(q, vec2(0.0))) - uRadius;
+  if (uBayH.x > 0.0) {
+    vec2 b = abs(p - uBayC) - uBayH;
+    d = min(d, length(max(b, vec2(0.0))) + min(max(b.x, b.y), 0.0));
+  }
   float wall = smoothstep(-0.18, 0.0, d);
   info.rg *= 1.0 - 0.5 * wall;
   gl_FragColor = info;
@@ -124,6 +132,10 @@ export interface Jet {
 export interface WaterSimConfig {
   res: [number, number]; // aspect-matched so world texels are ~square
   worldSize: [number, number];
+  rr: [number, number]; // rounded-rect half extents (SDF)
+  rrOff: [number, number];
+  bayC: [number, number];
+  bayH: [number, number]; // x<=0 disables the bay
   radius: number;
   flow: number; // raw 0..1; smoothed internally
   heightScale: number; // sim height -> world y; must match the surface shader's
@@ -159,7 +171,7 @@ function makeTarget(res: [number, number]): THREE.WebGLRenderTarget {
 
 export function useWaterSim(cfg: WaterSimConfig): WaterSim {
   const {
-    res, worldSize, radius, heightScale, jets, jetLen,
+    res, worldSize, rr, rrOff, bayC, bayH, radius, heightScale, jets, jetLen,
     jetK, jetOmega, jetAmp, damping, dropRadius, rateScale = 1,
   } = cfg;
   const simRef = React.useRef<THREE.Texture | null>(null);
@@ -205,6 +217,10 @@ export function useWaterSim(cfg: WaterSimConfig): WaterSim {
       uDamping: { value: 0.99 },
       uHalf: { value: half },
       uRadius: { value: radius },
+      uRR: { value: new THREE.Vector2(...rr) },
+      uRROff: { value: new THREE.Vector2(...rrOff) },
+      uBayC: { value: new THREE.Vector2(...bayC) },
+      uBayH: { value: new THREE.Vector2(...bayH) },
     });
     const normal = mk(NORMAL_FRAG, {
       uPrev: { value: null },
@@ -235,10 +251,10 @@ export function useWaterSim(cfg: WaterSimConfig): WaterSim {
     for (let i = 0; i < 8; i++) {
       const u = Math.random();
       const v = Math.random();
-      const px = (u - 0.5) * w;
+      const px = (u - 0.5) * w - rrOff[0];
       const py = (v - 0.5) * h;
-      const qx = Math.abs(px) - (w / 2 - radius);
-      const qy = Math.abs(py) - (h / 2 - radius);
+      const qx = Math.abs(px) - (rr[0] - radius);
+      const qy = Math.abs(py) - (rr[1] - radius);
       const d = Math.hypot(Math.max(qx, 0), Math.max(qy, 0)) - radius;
       if (d < -0.3) return [u, v];
     }
