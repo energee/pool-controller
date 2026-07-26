@@ -71,10 +71,12 @@ const SelectContent = React.forwardRef<
     /** Portal target; defaults to <body>. Pass the popover element when the
      *  select lives inside a native popover — a body-level portal would paint
      *  under the top layer. */
-    container?: HTMLElement | null;
+    container?: React.ComponentPropsWithoutRef<
+      typeof SelectPrimitive.Portal
+    >["container"];
   }
 >(({ className, children, position = "popper", container, ...props }, ref) => (
-  <SelectPrimitive.Portal container={container ?? undefined}>
+  <SelectPrimitive.Portal container={container}>
     <SelectPrimitive.Content
       ref={ref}
       className={cn(

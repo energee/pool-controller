@@ -30,6 +30,8 @@ import {
 
 const SCHED_SLOTS = 12; // the controller exposes schedule slots 1..12
 const POOL = String(CIRCUIT_NUMBERS.pool); // default editor circuit
+const EDITOR = "sched-editor"; // popover id, shared by every popoverTarget below
+const allDays = () => new Set(DAYS.map(([t]) => t));
 
 const circuitName = (num: number) =>
   CIRCUITS.find(([n]) => n === num)?.[1] ?? "circuit " + num;
@@ -57,28 +59,23 @@ export function SchedulesCard({
   const [circuit, setCircuit] = React.useState(POOL);
   const [start, setStart] = React.useState("08:00");
   const [end, setEnd] = React.useState("17:00");
-  const [daySet, setDaySet] = React.useState<Set<string>>(
-    () => new Set(DAYS.map(([t]) => t)),
-  );
+  const [daySet, setDaySet] = React.useState<Set<string>>(allDays);
 
-  // Load an existing slot into the editor.
-  const load = (x: Schedule) => {
-    setEditId(String(x.id));
-    setCircuit(x.circuit != null ? String(x.circuit) : POOL);
-    setStart(x.start || "08:00");
-    setEnd(x.end || "17:00");
-    setDaySet(daysToSet(x.days));
+  // Open the editor on a slot: an existing schedule's values, or fresh defaults
+  // when `x` is absent (the "+ Add schedule" path). One set of defaults.
+  const open = (id: number | string, x?: Schedule) => {
+    setEditId(String(id));
+    setCircuit(x?.circuit != null ? String(x.circuit) : POOL);
+    setStart(x?.start || "08:00");
+    setEnd(x?.end || "17:00");
+    setDaySet(x ? daysToSet(x.days) : allDays());
   };
 
-  // Target the lowest slot that isn't an active schedule, with fresh defaults.
-  const newSlot = () => {
+  // The lowest slot that isn't already an active schedule.
+  const freeSlot = () => {
     let free = 1;
     while (free < SCHED_SLOTS && map[String(free)]?.active) free++;
-    setEditId(String(free));
-    setCircuit(POOL);
-    setStart("08:00");
-    setEnd("17:00");
-    setDaySet(new Set(DAYS.map(([t]) => t)));
+    return free;
   };
 
   const toggleDay = (tok: string) =>
@@ -116,8 +113,8 @@ export function SchedulesCard({
         {active.map((x) => (
           <button
             key={x.id}
-            popoverTarget="sched-editor"
-            onClick={() => load(x)}
+            popoverTarget={EDITOR}
+            onClick={() => open(x.id, x)}
             className={cn(
               "flex w-full items-center justify-between gap-2.5 rounded-md px-2.5 py-2 text-left text-[13px] transition-colors hover:bg-accent",
               String(x.id) === editId ? "bg-accent" : "bg-popover",
@@ -147,15 +144,15 @@ export function SchedulesCard({
         size="sm"
         className="mt-2 w-full"
         disabled={!haveFreeSlot}
-        popoverTarget="sched-editor"
-        onClick={newSlot}
+        popoverTarget={EDITOR}
+        onClick={() => open(freeSlot())}
       >
         {haveFreeSlot ? "+ Add schedule" : "all 12 schedules in use"}
       </Button>
 
       <div
         ref={setPop}
-        id="sched-editor"
+        id={EDITOR}
         popover="auto"
         onToggle={(e) => e.newState === "closed" && setEditId(null)}
         className="m-auto w-[340px] max-w-[calc(100vw-2rem)] rounded-lg border border-border bg-popover p-4 text-foreground shadow-xl backdrop:bg-black/50"
@@ -165,7 +162,7 @@ export function SchedulesCard({
           <Button
             variant="ghost"
             size="sm"
-            popoverTarget="sched-editor"
+            popoverTarget={EDITOR}
             popoverTargetAction="hide"
           >
             Cancel
@@ -173,69 +170,69 @@ export function SchedulesCard({
         </div>
 
         <Grid2 className="mt-2">
-            {/* Full-width row; Start/End pair up on the next one. */}
-            <div className="space-y-1.5 col-span-2">
-              <Label>Circuit</Label>
-              <Select value={circuit} onValueChange={setCircuit}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent container={pop}>
-                  {CIRCUITS.map(([num, name]) => (
-                    <SelectItem key={num} value={String(num)}>
-                      {name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="sch_start">Start</Label>
-              <Input
-                id="sch_start"
-                type="time"
-                value={start}
-                onChange={(e) => setStart(e.target.value)}
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="sch_end">End</Label>
-              <Input
-                id="sch_end"
-                type="time"
-                value={end}
-                onChange={(e) => setEnd(e.target.value)}
-              />
-            </div>
-          </Grid2>
-
-          <div className="mt-2.5 space-y-1.5">
-            <Label>Days</Label>
-            <div className="flex flex-wrap gap-1.5">
-              {DAYS.map(([tok, lbl]) => (
-                <Button
-                  key={tok}
-                  variant={daySet.has(tok) ? "default" : "outline"}
-                  size="sm"
-                  className="w-9 px-0"
-                  onClick={() => toggleDay(tok)}
-                >
-                  {lbl}
-                </Button>
-              ))}
-              <Button
-                variant={daySet.size === DAYS.length ? "default" : "outline"}
-                size="sm"
-                onClick={() => setDaySet(new Set(DAYS.map(([t]) => t)))}
-              >
-                Every
-              </Button>
-            </div>
+          {/* Full-width row; Start/End pair up on the next one. */}
+          <div className="space-y-1.5 col-span-2">
+            <Label>Circuit</Label>
+            <Select value={circuit} onValueChange={setCircuit}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent container={pop}>
+                {CIRCUITS.map(([num, name]) => (
+                  <SelectItem key={num} value={String(num)}>
+                    {name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="sch_start">Start</Label>
+            <Input
+              id="sch_start"
+              type="time"
+              value={start}
+              onChange={(e) => setStart(e.target.value)}
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="sch_end">End</Label>
+            <Input
+              id="sch_end"
+              type="time"
+              value={end}
+              onChange={(e) => setEnd(e.target.value)}
+            />
+          </div>
+        </Grid2>
 
-          <Button className="mt-2.5" disabled={daySet.size === 0} onClick={save}>
-            Save schedule
-          </Button>
+        <div className="mt-2.5 space-y-1.5">
+          <Label>Days</Label>
+          <div className="flex flex-wrap gap-1.5">
+            {DAYS.map(([tok, lbl]) => (
+              <Button
+                key={tok}
+                variant={daySet.has(tok) ? "default" : "outline"}
+                size="sm"
+                className="w-9 px-0"
+                onClick={() => toggleDay(tok)}
+              >
+                {lbl}
+              </Button>
+            ))}
+            <Button
+              variant={daySet.size === DAYS.length ? "default" : "outline"}
+              size="sm"
+              onClick={() => setDaySet(allDays())}
+            >
+              Every
+            </Button>
+          </div>
+        </div>
+
+        <Button className="mt-2.5" disabled={daySet.size === 0} onClick={save}>
+          Save schedule
+        </Button>
       </div>
     </DashCard>
   );

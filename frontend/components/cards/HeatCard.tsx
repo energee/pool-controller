@@ -119,11 +119,11 @@ function Thermostat({
           </button>
         ))}
       </div>
+      {/* One branch on `tab`, so a body's four fields can't be mismatched. */}
       <BodyRow
-        label={tab === "pool" ? "Pool" : "Spa"}
-        current={tab === "pool" ? heat.pool_temp : heat.spa_temp}
-        target={tab === "pool" ? poolSp : spaSp}
-        mode={tab === "pool" ? poolMode : spaMode}
+        {...(tab === "pool"
+          ? { label: "Pool", current: heat.pool_temp, target: poolSp, mode: poolMode }
+          : { label: "Spa", current: heat.spa_temp, target: spaSp, mode: spaMode })}
         pending={dirty || sending}
         onNudge={(d) => nudge(tab, d)}
         onMode={(m) => setMode(tab, m)}
@@ -135,6 +135,11 @@ function Thermostat({
     </DashCard>
   );
 }
+
+// The small uppercase word tagging each half of the "now → set" pair.
+const Micro = ({ children }: { children: React.ReactNode }) => (
+  <span className={cn(STAT_LABEL, "font-normal")}>{children}</span>
+);
 
 function BodyRow({
   label,
@@ -163,7 +168,7 @@ function BodyRow({
         value={
           <span className="inline-flex items-baseline gap-2.5">
             <span className="inline-flex items-baseline gap-1.5">
-              <span className={cn(STAT_LABEL, "font-normal")}>now</span>
+              <Micro>now</Micro>
               {current ?? "–"}°
             </span>
             <MoveRight
@@ -171,7 +176,7 @@ function BodyRow({
               className="h-4 w-4 self-center text-muted-foreground"
             />
             <span className="inline-flex items-baseline gap-1.5">
-              <span className={cn(STAT_LABEL, "font-normal")}>set</span>
+              <Micro>set</Micro>
               <span className={cn(pending && "text-destructive animate-pulse")}>
                 {target}°
               </span>

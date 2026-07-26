@@ -41,14 +41,16 @@ export function Tile({
   );
 }
 
-// The uppercase muted section-title style shared by card headings and the
-// Diagnostics / Raw frames disclosures.
-export const SECTION_TITLE =
+// The uppercase muted title shared by DashCard's heading and Disclosure's
+// summary. Not exported: cards get it through those two, never by hand.
+const SECTION_TITLE =
   "text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground";
 
-// The smaller uppercase label over a big stat value (setpoints, salt, output).
+// The label/value pair of a big stat readout (setpoints, salt, output), shared
+// by Stepper and by cards that show a stat without steppers.
 export const STAT_LABEL =
   "text-[11px] text-muted-foreground tracking-[0.04em] uppercase";
+export const STAT_VALUE = "text-[22px] font-medium tracking-tight";
 
 // A labelled big-value readout with −/+ stepper buttons — the app's shared
 // "adjust a number" control (heat setpoints, chlorinator output). `value` is a
@@ -70,7 +72,7 @@ export function Stepper({
     <div className="flex items-center justify-between gap-2">
       <div>
         <div className={STAT_LABEL}>{label}</div>
-        <div className="text-[22px] font-medium tracking-tight">{value}</div>
+        <div className={STAT_VALUE}>{value}</div>
       </div>
       <div className="flex items-center gap-1.5">
         <Button
