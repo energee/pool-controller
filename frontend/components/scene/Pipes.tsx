@@ -110,8 +110,8 @@ const undergroundSuction: Point[] = [
 // Underground (ghosted): from the cell's drop, around the pool's east end and
 // along the front of the deck to the jet inlet at the pool's FRONT-LEFT.
 const undergroundReturn: Point[] = [
-  [5.55, -0.12, 0.75],
-  [5.55, -0.45, 0.9],
+  [5.55, -0.12, 2.05],
+  [5.55, -0.45, 2.2],
   [5.55, -0.45, 3.9],
   [-5.33, -0.45, 3.9],
   [-5.33, -0.45, 2.85],
@@ -141,21 +141,22 @@ const filterToHeater: Point[] = [
   [6.0, 0.18, 1.15],
 ];
 
-// Out of the heater's pool face, square around into the cell's front union.
+// Out of the heater's pool face, square around behind the cell and into its
+// BACK union (heat enters the far side of the cell).
 const heaterToCell: Point[] = [
   [6.0, 0.18, 1.6],
   [5.9, 0.18, 1.6],
-  [5.9, 0.18, 1.95],
-  [5.55, 0.18, 1.95],
-  [5.55, 0.22, 1.73],
+  [5.9, 0.12, 0.75],
+  [5.55, 0.12, 0.75],
+  [5.55, 0.22, 0.97],
 ];
 
-// Out of the cell's back union, straight down underground (continues as the
-// ghosted return run to the front-left jet).
+// Out of the cell's FRONT union toward the filter, then down underground
+// (continues as the ghosted return run to the front-left jet).
 const returnPool: Point[] = [
-  [5.55, 0.22, 0.99],
-  [5.55, 0.22, 0.75],
-  [5.55, -0.12, 0.75],
+  [5.55, 0.22, 1.73],
+  [5.55, 0.22, 2.05],
+  [5.55, -0.12, 2.05],
 ];
 
 export function Pipes({ scene }: { scene: SceneState }) {
