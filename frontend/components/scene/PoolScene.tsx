@@ -84,19 +84,6 @@ function rrAt(
   return s;
 }
 
-// Flat rounded-rect ring (outer minus inner) used for the pool coping.
-function copingGeometry(): THREE.ExtrudeGeometry {
-  // NOTE: the expanded bay's half-width must stay under the outer outline's
-  // straight west-edge extent ((h+0.7)/2 - (r+0.3)), or the path
-  // self-intersects with the corner arcs and the triangulation tears.
-  const outer = rrAt(0, 0, POOL_SIZE[0] + 0.7, POOL_SIZE[1] + 0.7, POOL_RADIUS + 0.3, [
-    BAY[0] + 0.35,
-    BAY[1] + 0.35,
-  ]);
-  outer.holes.push(rrAt(0, 0, POOL_SIZE[0], POOL_SIZE[1], POOL_RADIUS, BAY));
-  return new THREE.ExtrudeGeometry(outer, { depth: 0.03, bevelEnabled: false });
-}
-
 // Deck slab with the pool cut out, so the sunken tile floor is visible
 // through the water. Material group 0 = top/bottom faces, 1 = extrude sides.
 function deckGeometry(): THREE.ExtrudeGeometry {
@@ -169,7 +156,6 @@ void main() {
 `;
 
 export function PoolScene({ scene }: { scene: SceneState }) {
-  const coping = React.useMemo(copingGeometry, []);
   const deck = React.useMemo(deckGeometry, []);
   const walls = React.useMemo(wallsGeometry, []);
   const deckMats = React.useMemo(
@@ -207,15 +193,15 @@ export function PoolScene({ scene }: { scene: SceneState }) {
       {[1, -1].map((side) => (
         <mesh
           key={side}
-          position={[-9.29, -0.81, POOL_POS[1] + side * (BAY[1] / 2 - 0.1)]}
+          position={[-9.29, -0.83, POOL_POS[1] + side * (BAY[1] / 2 - 0.1)]}
         >
-          <boxGeometry args={[1.82, 1.7, 0.12]} />
+          <boxGeometry args={[1.82, 1.66, 0.12]} />
           <meshStandardMaterial color="#f4f3ee" roughness={0.8} />
         </mesh>
       ))}
       {/* white back panel — the fiberglass shell covers the bay's liner */}
-      <mesh position={[-10.08, -0.81, POOL_POS[1]]}>
-        <boxGeometry args={[0.14, 1.7, BAY[1] - 0.12]} />
+      <mesh position={[-10.08, -0.83, POOL_POS[1]]}>
+        <boxGeometry args={[0.14, 1.66, BAY[1] - 0.12]} />
         <meshStandardMaterial color="#f4f3ee" roughness={0.8} />
       </mesh>
 
@@ -223,19 +209,11 @@ export function PoolScene({ scene }: { scene: SceneState }) {
       <mesh
         geometry={walls}
         rotation={[-Math.PI / 2, 0, 0]}
-        position={[POOL_POS[0], -2.05, POOL_POS[1]]}
+        position={[POOL_POS[0], -2.1, POOL_POS[1]]}
       >
         <shaderMaterial vertexShader={WALL_VERT} fragmentShader={WALL_FRAG} />
       </mesh>
 
-      {/* pool: white coping ring around the sunken water sheet */}
-      <mesh
-        geometry={coping}
-        rotation={[-Math.PI / 2, 0, 0]}
-        position={[POOL_POS[0], 0.005, POOL_POS[1]]}
-      >
-        <meshStandardMaterial color="#d5cab6" roughness={0.95} />
-      </mesh>
       <Water
         size={POOL_SIZE}
         radius={POOL_RADIUS}
