@@ -18,7 +18,7 @@ const POOL_POS: [number, number] = [-2.0, 0.3];
 const POOL_SIZE: [number, number] = [11.0, 5.5];
 const POOL_RADIUS = 1.2;
 const CAM_POS: [number, number, number] = [8.3, 7.0, 11.9];
-const CAM_TARGET: [number, number, number] = [0.1, -1.1, 0.1];
+const CAM_TARGET: [number, number, number] = [-0.5, -1.1, 0.1];
 
 // Seed the camera's starting pose once; OrbitControls owns it from there
 // (and, unlike a one-shot lookAt, keeps re-aiming it every frame, so the
@@ -75,7 +75,8 @@ function copingGeometry(): THREE.ExtrudeGeometry {
 // Deck slab with the pool cut out, so the sunken tile floor is visible
 // through the water. Material group 0 = top/bottom faces, 1 = extrude sides.
 function deckGeometry(): THREE.ExtrudeGeometry {
-  const outer = rrAt(0, 0, 16, 9.6, 0.4);
+  // Extra ground west of the pool (stairs side): deck spans x -11..8.
+  const outer = rrAt(-1.5, 0, 19, 9.6, 0.4);
   outer.holes.push(
     rrAt(POOL_POS[0], -POOL_POS[1], POOL_SIZE[0], POOL_SIZE[1], POOL_RADIUS),
   );
@@ -155,6 +156,18 @@ export function PoolScene({ scene }: { scene: SceneState }) {
         rotation={[-Math.PI / 2, 0, 0]}
         position={[0, -0.25, 0]}
       />
+      {/* white entry stairs descending into the pool's west end */}
+      {[0, 1, 2, 3].map((i) => {
+        const top = -0.2 - 0.3 * i;
+        const h = top + 1.35;
+        return (
+          <mesh key={i} position={[-7.3 + 0.4 * i, top - h / 2, POOL_POS[1]]}>
+            <boxGeometry args={[0.4, h, 2.4]} />
+            <meshStandardMaterial color="#f2f1ec" roughness={0.85} />
+          </mesh>
+        );
+      })}
+
       {/* tile-linered basin walls from the waterline down to the floor */}
       <mesh
         geometry={walls}
