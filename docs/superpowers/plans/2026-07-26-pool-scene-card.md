@@ -469,3 +469,24 @@ Notable fixes found during visual verification:
   hidden tab renders nothing — verification must use a visible or headless
   page, and the camera is pinned per-frame because Canvas camera props are
   re-applied on every poll re-render.
+
+## Addendum 2: simulation-driven water (same day)
+
+The analytic sine-wave water was replaced with a real GPU height-field
+simulation modeled on jeantimex/threejs-water (Evan Wallace's scheme),
+researched via a workflow that extracted the demo's shaders verbatim:
+- `waterSim.ts`: per-instance ping-pong HalfFloat FBOs (pool 256×128, spa
+  64×64; R=height, G=velocity, BA=normal.xz), one batched Hann-window drop
+  pass (rate/strength scale with pump flow; jets cluster drops), two
+  wave-equation steps with flow-driven damping and a rounded-rect SDF
+  absorbing boundary, one normal pass — all in `useFrame` priority −1.
+- `Water.tsx`: the surface displaces by the sim, reflects a procedural sky by
+  Schlick fresnel, and alpha-composites over an opaque floor whose shader
+  draws hash-varied procedural tiles, wobbles them by surface slope (fake
+  refraction), and lights them with a divergence-of-normals caustic sheared
+  along the refracted sun. Dropped from the demo for budget: the 1024²
+  caustics pass, ray-box refraction tracing, sky cubemap, parallax
+  refinement.
+- `PoolScene.tsx`: the deck is now an ExtrudeGeometry with the pool cut out,
+  over plaster basin walls, so the sunken tile floor is genuinely visible
+  through the water.
