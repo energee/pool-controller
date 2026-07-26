@@ -1,15 +1,18 @@
 // GPU height-field water simulation (the Evan Wallace / jeantimex scheme,
 // adapted from jeantimex/threejs-water): two ping-pong half-float render
-// targets hold R=height, G=velocity, BA=normal.xz. Each frame runs one batched
-// drop pass (Hann-window bumps whose rate/strength scale with pump flow),
-// fixed-timestep wave-equation updates (120/s) with flow-driven damping and a
-// rounded-rect absorbing boundary, then a normal pass. Drops replace the
-// demo's mouse interaction.
+// targets hold R=height, G=velocity, BA=normal.xz. Each frame runs one
+// forcing pass (pressurized return JETS — oscillating directional sources
+// that imprint a traveling wave train marching downstream from each nozzle —
+// plus occasional ambient Hann-window drops), fixed-timestep wave-equation
+// updates (120/s) with flow-driven damping and a rounded-rect absorbing
+// boundary, then a normal pass.
 import * as React from "react";
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 
 const MAX_DROPS = 8;
+const MAX_JETS = 4;
+const JET_OMEGA = 7.5; // rad/s — with k=10.5 rad/wu the train travels ~0.71 wu/s
 
 const SIM_VERT = /* glsl */ `
 varying vec2 vUv;
@@ -20,11 +23,20 @@ void main() {
 }
 `;
 
-// Batched Hann-window drop injection: up to MAX_DROPS bumps in one pass.
+// Forcing pass: pressurized jets + ambient drops in one fullscreen pass.
+// Jets force the VELOCITY field with sin(k*s - phase) along the jet axis —
+// a sustained traveling-wave source, so waves visibly push downstream from
+// the nozzle instead of raining randomly. Drops add Hann bumps to height.
 const DROP_FRAG = /* glsl */ `
 uniform sampler2D uPrev;
 uniform int uCount;
 uniform vec4 uDrops[${MAX_DROPS}]; // xy = center (sim UV), z = radius (wu), w = strength
+uniform int uJetCount;
+uniform vec2 uJetPos[${MAX_JETS}]; // nozzle in sim UV
+uniform vec2 uJetDir[${MAX_JETS}]; // unit direction, plane-local frame
+uniform float uJetAmp;             // velocity forcing amplitude (flow-scaled)
+uniform float uJetLen;             // plume length in world units (flow-scaled)
+uniform float uJetPhase;           // advancing phase, wrapped at 2*PI
 uniform vec2 uWorldSize;
 varying vec2 vUv;
 const float PI = 3.141592653589793;
@@ -37,6 +49,19 @@ void main() {
     float t = max(0.0, 1.0 - length(d) / uDrops[i].z);
     t = 0.5 - 0.5 * cos(t * PI); // Hann profile: smooth peak and edge
     info.r += t * uDrops[i].w;
+  }
+  for (int j = 0; j < ${MAX_JETS}; j++) {
+    if (j >= uJetCount) break;
+    vec2 rel = (vUv - uJetPos[j]) * uWorldSize; // plane-local world units
+    vec2 dir = uJetDir[j];
+    float s = dot(rel, dir);                    // distance downstream
+    float lat = abs(rel.x * dir.y - rel.y * dir.x);
+    // Plume envelope: widens downstream, fades in at the nozzle, dies at uJetLen.
+    float sigma = 0.10 + 0.22 * max(s, 0.0);
+    float env = exp(-lat * lat / (2.0 * sigma * sigma))
+              * smoothstep(-0.15, 0.05, s)
+              * (1.0 - smoothstep(uJetLen * 0.55, uJetLen, s));
+    info.g += uJetAmp * env * sin(10.5 * s - uJetPhase);
   }
   gl_FragColor = info;
 }
@@ -93,13 +118,19 @@ void main() {
 
 export const HEIGHT_SCALE = 1.6; // sim height units -> world y, shared with the surface shader
 
+export interface Jet {
+  pos: [number, number]; // nozzle in sim UV
+  dir: [number, number]; // downstream direction, plane-local frame (normalized internally)
+}
+
 export interface WaterSimConfig {
   res: [number, number]; // aspect-matched so world texels are ~square
   worldSize: [number, number];
   radius: number;
   flow: number; // raw 0..1; smoothed internally
-  jets: [number, number][]; // drop cluster sites in sim UV
-  dropRadius: [number, number]; // base + random spread, world units (>= ~7 texels)
+  jets: Jet[]; // pressurized return jets (max 4): sustained wave-train sources
+  jetLen: [number, number]; // plume length = base + perFlow * flow, world units
+  dropRadius: [number, number]; // ambient drops: base + random spread, world units
   rateScale?: number;
 }
 
@@ -124,13 +155,14 @@ function makeTarget(res: [number, number]): THREE.WebGLRenderTarget {
 }
 
 export function useWaterSim(cfg: WaterSimConfig): WaterSim {
-  const { res, worldSize, radius, jets, dropRadius, rateScale = 1 } = cfg;
+  const { res, worldSize, radius, jets, jetLen, dropRadius, rateScale = 1 } = cfg;
   const simRef = React.useRef<THREE.Texture | null>(null);
   const flowRef = React.useRef(0);
   const flowProp = React.useRef(cfg.flow);
   flowProp.current = cfg.flow;
   const acc = React.useRef(0);
   const stepAcc = React.useRef(0);
+  const phase = React.useRef(0);
 
   const sim = React.useMemo(() => {
     const targets = [makeTarget(res), makeTarget(res)];
@@ -139,10 +171,25 @@ export function useWaterSim(cfg: WaterSimConfig): WaterSim {
     const world = new THREE.Vector2(worldSize[0], worldSize[1]);
     const mk = (frag: string, uniforms: Record<string, THREE.IUniform>) =>
       new THREE.ShaderMaterial({ vertexShader: SIM_VERT, fragmentShader: frag, uniforms, depthTest: false, depthWrite: false });
+    const jetCount = Math.min(jets.length, MAX_JETS);
     const drop = mk(DROP_FRAG, {
       uPrev: { value: null },
       uCount: { value: 0 },
       uDrops: { value: Array.from({ length: MAX_DROPS }, () => new THREE.Vector4()) },
+      uJetCount: { value: jetCount },
+      uJetPos: {
+        value: Array.from({ length: MAX_JETS }, (_, i) =>
+          new THREE.Vector2(...(jets[i]?.pos ?? [0, 0])),
+        ),
+      },
+      uJetDir: {
+        value: Array.from({ length: MAX_JETS }, (_, i) =>
+          new THREE.Vector2(...(jets[i]?.dir ?? [0, 1])).normalize(),
+        ),
+      },
+      uJetAmp: { value: 0 },
+      uJetLen: { value: jetLen[0] },
+      uJetPhase: { value: 0 },
       uWorldSize: { value: world },
     });
     const update = mk(UPDATE_FRAG, {
@@ -196,24 +243,18 @@ export function useWaterSim(cfg: WaterSimConfig): WaterSim {
     const flow = (flowRef.current +=
       (flowProp.current - flowRef.current) * Math.min(dt * 2, 1));
 
-    // Drop scheduler: jets churn with flow; near-still water gets rare ambient rings.
-    const rate = (flow < 0.02 ? 0.15 : 1.5 + 16 * flow) * rateScale;
+    // Ambient drops only — the jets carry the flow now. A light sprinkle adds
+    // texture while running; near-still water gets a rare ring.
+    const rate = (flow < 0.02 ? 0.15 : 0.6 + 2.5 * flow) * rateScale;
     acc.current += dt * rate;
     let count = 0;
     const drops = sim.drop.uniforms.uDrops.value as THREE.Vector4[];
     while (acc.current >= 1 && count < MAX_DROPS) {
       acc.current -= 1;
-      let u: number, v: number;
-      if (Math.random() < 0.65 && jets.length > 0) {
-        const jet = jets[Math.floor(Math.random() * jets.length)];
-        u = jet[0] + (Math.random() - 0.5) * 0.12;
-        v = jet[1] + (Math.random() - 0.5) * 0.12;
-      } else {
-        [u, v] = randomSite();
-      }
+      const [u, v] = randomSite();
       const r = dropRadius[0] + dropRadius[1] * Math.random();
       const sign = Math.random() < 0.65 ? -1 : 1; // impacts read better than bulges
-      drops[count].set(u, v, r, sign * (0.005 + 0.014 * flow));
+      drops[count].set(u, v, r, sign * (0.004 + 0.008 * flow));
       count++;
     }
 
@@ -225,8 +266,15 @@ export function useWaterSim(cfg: WaterSimConfig): WaterSim {
       sim.read = 1 - sim.read;
     };
 
-    if (count > 0) {
+    // Forcing pass runs whenever there is anything to inject: queued drops or
+    // live jets. Jet phase advances in real time (wrapped — sin is periodic).
+    const jetsLive = flow > 0.02 && jets.length > 0;
+    if (count > 0 || jetsLive) {
+      phase.current = (phase.current + dt * JET_OMEGA) % (2 * Math.PI);
       sim.drop.uniforms.uCount.value = count;
+      sim.drop.uniforms.uJetAmp.value = jetsLive ? 0.009 * flow : 0;
+      sim.drop.uniforms.uJetLen.value = jetLen[0] + jetLen[1] * flow;
+      sim.drop.uniforms.uJetPhase.value = phase.current;
       pass(sim.drop);
     }
     sim.update.uniforms.uDamping.value = THREE.MathUtils.lerp(0.986, 0.997, flow);

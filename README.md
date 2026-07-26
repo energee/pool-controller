@@ -289,7 +289,7 @@ freshness). There is no separate summary strip: the controls are the readings.
   (after Evan Wallace's WebGL water) with refracted procedural pool tiles,
   caustics, and sky reflection — plus the pump, filter, heater, and
   chlorinator connected by pipes. Everything animates from the `/state`
-  poll: ripple churn and pipe-flow speed scale with pump GPM/RPM, the
+  poll: return-jet wave trains, ripple churn, and pipe-flow speed scale with pump GPM/RPM, the
   active pool/spa branch carries the flow, the heater and chlorinator glow
   when on, the spa bubbles, and hovering equipment shows its live numbers.
   Stale or disconnected data freezes and desaturates the scene.

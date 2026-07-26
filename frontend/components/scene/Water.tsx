@@ -8,7 +8,7 @@ import * as React from "react";
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 
-import { HEIGHT_SCALE, useWaterSim } from "./waterSim";
+import { HEIGHT_SCALE, useWaterSim, type Jet } from "./waterSim";
 
 const SURFACE_VERT = /* glsl */ `
 uniform sampler2D uSim;
@@ -166,7 +166,8 @@ interface Variant {
   floor: boolean;
   alphaRange: [number, number];
   tileSize: number;
-  jets: [number, number][];
+  jets: Jet[];
+  jetLen: [number, number];
   dropRadius: [number, number];
   rateScale: number;
 }
@@ -180,11 +181,11 @@ const VARIANTS: Record<"pool" | "spa", Variant> = {
     floor: true,
     alphaRange: [0.42, 0.9],
     tileSize: 0.42,
-    jets: [
-      [0.15, 0.3],
-      [0.5, 0.22],
-      [0.85, 0.38],
-    ],
+    // One pressurized return jet at the pipe inlet on the north edge (sim UV
+    // (0.68, 0.05) — see PoolScene's returnPool endpoint), aimed into the pool
+    // and slightly west like a real eyeball fitting, driving circulation.
+    jets: [{ pos: [0.68, 0.05], dir: [-0.25, 0.95] }],
+    jetLen: [0.8, 1.4],
     dropRadius: [0.22, 0.18],
     rateScale: 1,
   },
@@ -197,10 +198,14 @@ const VARIANTS: Record<"pool" | "spa", Variant> = {
     floor: true,
     alphaRange: [0.55, 0.95],
     tileSize: 0.28,
+    // Four perimeter jets aimed inward-tangential — the classic spa swirl.
     jets: [
-      [0.3, 0.3],
-      [0.7, 0.7],
+      { pos: [0.712, 0.712], dir: [-0.99, 0.141] },
+      { pos: [0.288, 0.712], dir: [-0.141, -0.99] },
+      { pos: [0.288, 0.288], dir: [0.99, -0.141] },
+      { pos: [0.712, 0.288], dir: [0.141, 0.99] },
     ],
+    jetLen: [0.3, 0.4],
     dropRadius: [0.12, 0.08],
     rateScale: 0.5,
   },
@@ -230,6 +235,7 @@ export function Water({
     radius,
     flow,
     jets: v.jets,
+    jetLen: v.jetLen,
     dropRadius: v.dropRadius,
     rateScale: v.rateScale,
   });
