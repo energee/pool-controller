@@ -86,9 +86,12 @@ function rrAt(
 
 // Flat rounded-rect ring (outer minus inner) used for the pool coping.
 function copingGeometry(): THREE.ExtrudeGeometry {
+  // NOTE: the expanded bay's half-width must stay under the outer outline's
+  // straight west-edge extent ((h+0.7)/2 - (r+0.3)), or the path
+  // self-intersects with the corner arcs and the triangulation tears.
   const outer = rrAt(0, 0, POOL_SIZE[0] + 0.7, POOL_SIZE[1] + 0.7, POOL_RADIUS + 0.3, [
     BAY[0] + 0.35,
-    BAY[1] + 0.7,
+    BAY[1] + 0.35,
   ]);
   outer.holes.push(rrAt(0, 0, POOL_SIZE[0], POOL_SIZE[1], POOL_RADIUS, BAY));
   return new THREE.ExtrudeGeometry(outer, { depth: 0.03, bevelEnabled: false });
