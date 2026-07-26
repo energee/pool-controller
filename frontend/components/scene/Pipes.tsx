@@ -1,6 +1,6 @@
 // Schematic pool-system plumbing as real 3D tubes: PVC-gray pipe runs with a
 // striped overlay tube whose texture scrolls to show water moving from the
-// active suction branch through the equipment and back to the returns.
+// pool suction through the equipment and back to the return inlet.
 import * as React from "react";
 import { Sparkles } from "@react-three/drei";
 import { useFrame } from "@react-three/fiber";
@@ -71,19 +71,12 @@ function PipeRun({
   );
 }
 
-// Waypoints (y=0.1 ground runs). Pool sits around [-1.2, z 0.6]; the spa tub at
-// [3.6, z 2.3]; the equipment pad along z=-2.2 east of the pool.
+// Waypoints (y=0.1 ground runs). Pool sits around [-1.9, z 0.6]; the
+// equipment pad along z=-2.2 east of it.
 const suctionPool: Point[] = [
-  [1.8, 0.1, -1.5],
-  [2.4, 0.1, -1.9],
+  [2.2, 0.1, -2.0],
+  [2.7, 0.1, -2.15],
   [3.2, 0.1, -2.2],
-  [3.6, 0.1, -2.2],
-];
-
-const suctionSpa: Point[] = [
-  [4.3, 0.1, 1.35],
-  [3.6, 0.1, 0.2],
-  [3.3, 0.1, -1.6],
   [3.6, 0.1, -2.2],
 ];
 
@@ -98,35 +91,23 @@ const returnPool: Point[] = [
   [6.7, 0.1, -2.2],
   [7.1, 0.1, -1.2],
   [7.1, 0.1, 3.9],
-  [1.0, 0.1, 3.9],
-  [0.2, 0.1, 2.85],
-];
-
-const returnSpa: Point[] = [
-  [7.1, 0.1, 2.5],
-  [6.2, 0.1, 2.5],
-  [5.5, 0.1, 2.5],
+  [0.9, 0.1, 3.9],
+  [0.9, 0.1, 3.15],
 ];
 
 export function Pipes({ scene }: { scene: SceneState }) {
   return (
     <group>
       <PipeRun points={suctionPool} active={scene.poolOn} flow={scene.flow} />
-      <PipeRun points={suctionSpa} active={scene.spaOn} flow={scene.flow} />
       <PipeRun
         points={mainRun}
-        active={scene.poolOn || scene.spaOn}
+        active={scene.poolOn}
         flow={scene.flow}
       />
       <PipeRun points={returnPool} active={scene.poolOn} flow={scene.flow} />
-      <PipeRun points={returnSpa} active={scene.spaOn} flow={scene.flow} />
 
-      {/* valve tees: suction merge at the pump, return split off the main */}
+      {/* valve tee where the suction line meets the pump */}
       <mesh position={[3.6, 0.1, -2.2]}>
-        <cylinderGeometry args={[0.13, 0.13, 0.22, 16]} />
-        <meshStandardMaterial color="#5b636d" />
-      </mesh>
-      <mesh position={[7.1, 0.1, 2.5]}>
         <cylinderGeometry args={[0.13, 0.13, 0.22, 16]} />
         <meshStandardMaterial color="#5b636d" />
       </mesh>

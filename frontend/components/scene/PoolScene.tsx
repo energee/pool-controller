@@ -1,9 +1,9 @@
 // The scene graph for the pool system card, styled after a real backyard pool:
-// a rounded-rect turquoise pool sunk into a light concrete deck with white
-// coping, a dark hot-tub spa, and the equipment pad + plumbing beside them.
+// a 16x32 ft rounded-rect turquoise pool sunk into a light concrete deck with
+// white coping, and the equipment pad + plumbing beside it.
 // Pure presentation of a SceneState; drag/wheel orbits around the pool.
 import * as React from "react";
-import { Html, OrbitControls, Sparkles } from "@react-three/drei";
+import { Html, OrbitControls } from "@react-three/drei";
 import { useThree } from "@react-three/fiber";
 import * as THREE from "three";
 
@@ -12,13 +12,13 @@ import { Equipment } from "./Equipment";
 import { Pipes } from "./Pipes";
 import { Water } from "./Water";
 
-// Pool footprint: rounded rect centred at [-1.2, 0.6], long axis X.
-const POOL_POS: [number, number] = [-1.2, 0.6];
-const POOL_SIZE: [number, number] = [7.6, 3.9];
+// Pool footprint: a 16x32 ft (2:1) rounded rect at ~3.33 ft/wu, centred at
+// [-1.9, 0.6] with the long axis on X.
+const POOL_POS: [number, number] = [-1.9, 0.6];
+const POOL_SIZE: [number, number] = [9.6, 4.8];
 const POOL_RADIUS = 1.2;
-const SPA_POS: [number, number] = [4.3, 2.5];
-const CAM_POS: [number, number, number] = [6.4, 5.4, 9.4];
-const CAM_TARGET: [number, number, number] = [0.3, -0.85, 0.2];
+const CAM_POS: [number, number, number] = [7.6, 6.6, 11.4];
+const CAM_TARGET: [number, number, number] = [-0.3, -1.15, 0.1];
 
 // Seed the camera's starting pose once; OrbitControls owns it from there
 // (and, unlike a one-shot lookAt, keeps re-aiming it every frame, so the
@@ -137,60 +137,6 @@ export function PoolScene({ scene }: { scene: SceneState }) {
         position={[POOL_POS[0], 0.055, POOL_POS[1]]}
       />
 
-      {/* spa: hollow dark hot tub — an open double-sided shell so the water
-          surface has a lit interior floor (Water's floor mesh) beneath it */}
-      <group position={[SPA_POS[0], 0, SPA_POS[1]]}>
-        <mesh position={[0, 0.39, 0]}>
-          <cylinderGeometry args={[1.08, 1.02, 0.78, 24, 1, true]} />
-          <meshStandardMaterial
-            color="#4a5058"
-            roughness={0.7}
-            side={THREE.DoubleSide}
-          />
-        </mesh>
-        <mesh position={[0, 0.78, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-          <torusGeometry args={[1.0, 0.08, 10, 32]} />
-          <meshStandardMaterial color="#5d646d" roughness={0.6} />
-        </mesh>
-        {/* four inlet nozzles on the wall (matching the sim's jet sites) and
-            the floor-drain exit at the bottom center */}
-        {[1, 3, 5, 7].map((n) => (
-          <group key={n} rotation={[0, (n * Math.PI) / 4, 0]}>
-            <mesh position={[0.85, 0.66, 0]} rotation={[0, 0, Math.PI / 2]}>
-              <cylinderGeometry args={[0.055, 0.055, 0.16, 12]} />
-              <meshStandardMaterial color="#cfd6db" roughness={0.5} />
-            </mesh>
-          </group>
-        ))}
-        <mesh position={[0, 0.486, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-          <circleGeometry args={[0.15, 24]} />
-          <meshStandardMaterial color="#7d949c" roughness={0.7} />
-        </mesh>
-        <mesh position={[0, 0.488, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-          <circleGeometry args={[0.1, 24]} />
-          <meshStandardMaterial color="#3f565e" roughness={0.7} />
-        </mesh>
-        <Water
-          variant="spa"
-          size={[1.9, 1.9]}
-          radius={0.95}
-          flow={scene.spaOn ? scene.flow : 0}
-          position={[0, 0.83, 0]}
-          shallow="#7fcfe0"
-          deep="#1d7391"
-        />
-        {scene.spaOn && scene.flow > 0 ? (
-          <Sparkles
-            count={30}
-            size={2.5}
-            color="#cfeefb"
-            speed={0.6 + scene.flow}
-            scale={[1.5, 0.7, 1.5]}
-            position={[0, 0.95, 0]}
-          />
-        ) : null}
-      </group>
-
       {/* equipment pad slab */}
       <mesh position={[5.15, 0.04, -2.2]}>
         <boxGeometry args={[4.4, 0.08, 1.6]} />
@@ -204,13 +150,6 @@ export function PoolScene({ scene }: { scene: SceneState }) {
         <Html center position={[POOL_POS[0], 0.55, POOL_POS[1]]}>
           <div className="text-sm font-medium text-white/90 drop-shadow-sm">
             {Math.round(scene.poolTemp)}°
-          </div>
-        </Html>
-      )}
-      {scene.spaTemp == null ? null : (
-        <Html center position={[SPA_POS[0], 1.35, SPA_POS[1]]}>
-          <div className="text-sm font-medium text-white/90 drop-shadow-sm">
-            {Math.round(scene.spaTemp)}°
           </div>
         </Html>
       )}

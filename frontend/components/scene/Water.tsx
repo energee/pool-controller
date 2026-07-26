@@ -159,78 +159,28 @@ void main() {
 
 const LIGHT_DIR = new THREE.Vector3(6, 10, 4).normalize(); // matches the scene's directionalLight
 
-interface Variant {
-  res: [number, number];
-  segments: [number, number];
-  depth: number;
-  floor: boolean;
-  alphaRange: [number, number];
-  tileSize: number;
-  heightScale: number;
-  jets: Jet[];
-  jetLen: [number, number];
-  jetK: number;
-  jetOmega: number;
-  jetAmp: number;
-  damping: [number, number];
-  dropRadius: [number, number];
-  rateScale: number;
-}
-
-// Sim texels stay ~square and ~0.03wu in both variants.
-const VARIANTS: Record<"pool" | "spa", Variant> = {
-  pool: {
-    res: [256, 128],
-    segments: [96, 64],
-    depth: 0.9,
-    floor: true,
-    alphaRange: [0.42, 0.9],
-    tileSize: 0.42,
-    heightScale: 1.6,
-    // One pressurized return jet at the pipe inlet on the north edge (sim UV
-    // (0.68, 0.05) — see PoolScene's returnPool endpoint), aimed into the pool
-    // and slightly west like a real eyeball fitting, driving circulation.
-    jets: [{ pos: [0.68, 0.05], dir: [-0.25, 0.95] }],
-    jetLen: [0.8, 1.4],
-    jetK: 10.5,
-    jetOmega: 7.5,
-    jetAmp: 0.009,
-    damping: [0.986, 0.997],
-    dropRadius: [0.22, 0.18],
-    rateScale: 1,
-  },
-  spa: {
-    // The tub is hollow (open shell in PoolScene) — this floor is the spa's
-    // interior bottom, so the water has something lit to refract onto.
-    res: [64, 64],
-    segments: [32, 32],
-    depth: 0.35,
-    floor: true,
-    alphaRange: [0.55, 0.95],
-    tileSize: 0.28,
-    // Small amplitude + short fast waves + strong decay: choppy spa boil, not
-    // the pool's long swells (which read as jelly at tub scale).
-    heightScale: 0.8,
-    // Four wall inlets aimed inward-tangential (matching the nozzle fittings
-    // in PoolScene) — the classic spa swirl. Exit is the floor drain.
-    jets: [
-      { pos: [0.779, 0.779], dir: [-0.99, 0.141] },
-      { pos: [0.221, 0.779], dir: [-0.141, -0.99] },
-      { pos: [0.221, 0.221], dir: [0.99, -0.141] },
-      { pos: [0.779, 0.221], dir: [0.141, 0.99] },
-    ],
-    jetLen: [0.22, 0.28],
-    jetK: 22,
-    jetOmega: 12,
-    jetAmp: 0.005,
-    damping: [0.986, 0.992],
-    dropRadius: [0.12, 0.08],
-    rateScale: 0.5,
-  },
+// 16x32 ft pool at ~3.33 ft per world unit. Sim texels stay ~square (0.0375wu).
+const POOL = {
+  res: [256, 128] as [number, number],
+  segments: [96, 64] as [number, number],
+  depth: 0.9,
+  alphaRange: [0.42, 0.9] as [number, number],
+  tileSize: 0.42,
+  heightScale: 1.6,
+  // One pressurized return jet at the pipe inlet on the north edge (sim UV
+  // (0.79, 0.04) — see PoolScene's returnPool endpoint), aimed into the pool
+  // and slightly west like a real eyeball fitting, driving circulation.
+  jets: [{ pos: [0.79, 0.04], dir: [-0.25, 0.95] }] as Jet[],
+  jetLen: [1.0, 1.8] as [number, number],
+  jetK: 10.5,
+  jetOmega: 7.5,
+  jetAmp: 0.009,
+  damping: [0.986, 0.997] as [number, number],
+  dropRadius: [0.22, 0.18] as [number, number],
+  rateScale: 1,
 };
 
 export function Water({
-  variant = "pool",
   size,
   radius,
   flow,
@@ -238,7 +188,6 @@ export function Water({
   shallow = "#8fdcec",
   deep = "#1f86b4",
 }: {
-  variant?: "pool" | "spa";
   size: [number, number];
   radius: number; // corner radius; use half the size for a round surface
   flow: number;
@@ -246,7 +195,7 @@ export function Water({
   shallow?: string;
   deep?: string;
 }) {
-  const v = VARIANTS[variant];
+  const v = POOL;
   const { simRef, flowRef } = useWaterSim({
     res: v.res,
     worldSize: size,
@@ -307,17 +256,15 @@ export function Water({
 
   return (
     <group position={position}>
-      {v.floor ? (
-        <mesh position={[0, -v.depth, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-          <planeGeometry args={[size[0], size[1], 1, 1]} />
-          <shaderMaterial
-            ref={floor}
-            uniforms={uniforms.floor}
-            vertexShader={FLOOR_VERT}
-            fragmentShader={FLOOR_FRAG}
-          />
-        </mesh>
-      ) : null}
+      <mesh position={[0, -v.depth, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+        <planeGeometry args={[size[0], size[1], 1, 1]} />
+        <shaderMaterial
+          ref={floor}
+          uniforms={uniforms.floor}
+          vertexShader={FLOOR_VERT}
+          fragmentShader={FLOOR_FRAG}
+        />
+      </mesh>
       <mesh rotation={[-Math.PI / 2, 0, 0]}>
         <planeGeometry args={[size[0], size[1], ...v.segments]} />
         <shaderMaterial
