@@ -177,7 +177,7 @@ Expected: FAIL — cannot resolve `./scene`.
 Run: `bun test frontend/lib/scene.test.ts` then `bun test` and `bun run typecheck`
 Expected: new tests PASS, full suite passes, typecheck clean.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add frontend/lib/scene.ts frontend/lib/scene.test.ts
@@ -197,7 +197,7 @@ git commit -m "feat(scene): deriveSceneState maps /state to scene inputs"
 - Consumes: `deriveSceneState`, `SceneState` from `frontend/lib/scene.ts`; `DashCard` from `../primitives`; `Dashboard`'s existing `state`/`connected`.
 - Produces: `export function PoolSceneCard({ state, connected }: { state: State | null; connected: boolean })` and `export function PoolScene({ scene }: { scene: SceneState })`.
 
-- [ ] **Step 1: `PoolSceneCard.tsx`**
+- [x] **Step 1: `PoolSceneCard.tsx`**
 
 ```tsx
 // Full-width dashboard card hosting the live 3D system scene. Owns the WebGL
@@ -255,7 +255,7 @@ export function PoolSceneCard({
 }
 ```
 
-- [ ] **Step 2: `PoolScene.tsx`** — lights + deck only for now:
+- [x] **Step 2: `PoolScene.tsx`** — lights + deck only for now:
 
 ```tsx
 // The scene graph for the pool system card: lighting, deck slab, and (in later
@@ -279,14 +279,14 @@ export function PoolScene({ scene }: { scene: SceneState }) {
 
 (`scene` is unused this task — prefix-destructure or reference it in a comment-free way that keeps tsc happy, e.g. accept the prop and ignore via `void scene;` is NOT needed: unused function params are fine under this tsconfig; verify with typecheck.)
 
-- [ ] **Step 3: Mount in `Dashboard.tsx`** — import `PoolSceneCard`, render it as the first child of `<main className={GRID}>`, passing `state={state}` and `connected={connected}` (both already in scope from `useDashboard()`). Update the card-order comment at the top of the file to mention the scene card.
+- [x] **Step 3: Mount in `Dashboard.tsx`** — import `PoolSceneCard`, render it as the first child of `<main className={GRID}>`, passing `state={state}` and `connected={connected}` (both already in scope from `useDashboard()`). Update the card-order comment at the top of the file to mention the scene card.
 
-- [ ] **Step 4: Validate**
+- [x] **Step 4: Validate**
 
 Run: `bun run typecheck && bun test`
 Expected: clean / all pass.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add frontend/components/scene frontend/components/Dashboard.tsx
