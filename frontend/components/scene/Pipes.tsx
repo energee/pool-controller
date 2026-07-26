@@ -71,56 +71,54 @@ function PipeRun({
   );
 }
 
-// The pool runs are buried: only the equipment-pad piping is visible, plus a
-// short riser where the suction emerges from the ground into the pump and a
-// short drop where the return dives back under the deck after the cell. The
-// pool ends are underground — suction from the front-left skimmer, jet inlet
-// at the front-right (see Water.tsx / PoolScene.tsx).
+// The pool runs are buried: only the equipment-pad piping is visible. Runs
+// are routed Manhattan-style (axis-aligned segments, right-angle elbows) to
+// match the owner's schematic. Flow: pool -> pump -> filter -> heater ->
+// cell -> underground to the front-right jet.
 const suctionPool: Point[] = [
-  [6.3, -0.12, 4.18],
-  [6.3, 0.05, 4.12],
-  [6.3, 0.24, 4.0],
+  [6.3, -0.12, 4.25],
+  [6.3, 0.23, 4.25],
+  [6.3, 0.23, 3.99],
 ];
 
-// Pump discharge (top stub) arcs over and into the filter's upper union,
-// which faces the pool (west).
+// Pump discharge: up, over, along, and down into the filter's upper union.
 const pumpToFilter: Point[] = [
   [6.3, 0.52, 3.53],
-  [6.15, 0.46, 3.2],
-  [5.85, 0.36, 2.7],
-  [5.92, 0.32, 2.48],
-  [6.07, 0.32, 2.4],
+  [6.3, 0.66, 3.53],
+  [5.8, 0.66, 3.53],
+  [5.8, 0.66, 2.4],
+  [5.8, 0.32, 2.4],
+  [6.06, 0.32, 2.4],
 ];
 
-// Filter's lower union wraps AROUND the heater (behind it, along the deck
-// edge) and enters from its pool face — the schematic's around-the-outside
-// run.
+// Filter's lower union wraps around the heater in a rectangle along the deck
+// edge and enters its pool face — the schematic's around-the-outside run.
 const filterToHeater: Point[] = [
-  [6.07, 0.18, 2.4],
-  [5.95, 0.14, 2.2],
-  [6.3, 0.1, 2.0],
-  [6.85, 0.1, 1.8],
-  [6.85, 0.1, 0.85],
-  [6.4, 0.12, 0.7],
-  [6.08, 0.16, 0.95],
-  [6.02, 0.18, 1.15],
+  [6.06, 0.18, 2.4],
+  [5.85, 0.18, 2.4],
+  [5.85, 0.1, 2.15],
+  [6.85, 0.1, 2.15],
+  [6.85, 0.1, 0.7],
+  [5.8, 0.1, 0.7],
+  [5.8, 0.14, 1.15],
+  [6.0, 0.18, 1.15],
 ];
 
-// Out of the heater's pool face (next to the inlet) into the cell, which
-// sits between the heater and the pool.
+// Out of the heater's pool face, square around into the cell's front union.
 const heaterToCell: Point[] = [
-  [6.02, 0.18, 1.6],
-  [5.82, 0.15, 1.42],
-  [5.62, 0.2, 1.15],
-  [5.55, 0.22, 0.99],
+  [6.0, 0.18, 1.6],
+  [5.9, 0.18, 1.6],
+  [5.9, 0.18, 1.95],
+  [5.55, 0.18, 1.95],
+  [5.55, 0.22, 1.73],
 ];
 
-// Out of the cell's front union and underground toward the pool's
+// Out of the cell's back union, straight down underground toward the pool's
 // front-right jet inlet.
 const returnPool: Point[] = [
-  [5.55, 0.22, 1.71],
-  [5.5, 0.05, 1.9],
-  [5.45, -0.12, 2.0],
+  [5.55, 0.22, 0.99],
+  [5.55, 0.22, 0.75],
+  [5.55, -0.12, 0.75],
 ];
 
 export function Pipes({ scene }: { scene: SceneState }) {
