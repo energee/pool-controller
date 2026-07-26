@@ -304,7 +304,7 @@ git commit -m "feat(scene): PoolSceneCard shell with Canvas and stale overlay"
 **Interfaces:**
 - Produces: `export function Water({ shape, size, flow, position }: { shape: "rect" | "round"; size: [number, number]; flow: number; position: [number, number, number] })` — for `round`, `size[0]` is the radius and `size[1]` ignored.
 
-- [ ] **Step 1: `Water.tsx`** — a plane (rect: `planeGeometry` 48×32 segments; round: `circleGeometry` radius, 48 segments) rotated `-Math.PI / 2` about X, with this ShaderMaterial (uniforms `uTime`, `uFlow`; update both in `useFrame`, lerping `uFlow` toward the `flow` prop at ~2/s so poll jumps ease in):
+- [x] **Step 1: `Water.tsx`** — a plane (rect: `planeGeometry` 48×32 segments; round: `circleGeometry` radius, 48 segments) rotated `-Math.PI / 2` about X, with this ShaderMaterial (uniforms `uTime`, `uFlow`; update both in `useFrame`, lerping `uFlow` toward the `flow` prop at ~2/s so poll jumps ease in):
 
 ```glsl
 // vertex
@@ -335,13 +335,13 @@ void main() {
 
 `transparent: true`. Module comment: shared rippling water surface; amplitude driven by normalized flow.
 
-- [ ] **Step 2: Basins in `PoolScene.tsx`** — starting blueprint (adjust ±10% for composition, keep the layout):
+- [x] **Step 2: Basins in `PoolScene.tsx`** — starting blueprint (adjust ±10% for composition, keep the layout):
   - Pool basin: box `[6.6, 0.9, 3.8]` at `[-2.6, 0.45, 1.1]`, color `#155e86`; `Water shape="rect" size={[6.2, 3.4]}` at `[-2.6, 0.82, 1.1]` with `flow={scene.poolOn ? scene.flow : 0}`.
   - Spa: cylinder radius 1.15, height 1.1 at `[2.6, 0.55, 2.0]`, color `#155e86`; `Water shape="round" size={[1.0, 0]}` at `[2.6, 1.02, 2.0]` with `flow={scene.spaOn ? scene.flow : 0}`.
 
-- [ ] **Step 3: Validate + visual sanity** — `bun run typecheck && bun test`. Expected: clean.
+- [x] **Step 3: Validate + visual sanity** — `bun run typecheck && bun test`. Expected: clean.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add frontend/components/scene
