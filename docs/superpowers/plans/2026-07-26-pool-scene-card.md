@@ -48,7 +48,7 @@
 
 `three`, `@react-three/fiber`, `@react-three/drei`, `@types/three` are installed and committed. Verify only:
 
-- [ ] **Step 1: Verify deps resolve**
+- [x] **Step 1: Verify deps resolve**
 
 Run: `bun run typecheck`
 Expected: clean (exit 0). If `three` or r3f types are missing, STOP and report — do not install anything.
@@ -93,7 +93,7 @@ export function deriveSceneState(state: State | null, connected: boolean): Scene
 - `stale = !connected || (state?.age != null && state.age > 60)`. Null/absent age with connected=true is NOT stale.
 - `state === null` → all-off: flows 0, everything null/false, `stale: true`.
 
-- [ ] **Step 1: Write the failing tests** — create `frontend/lib/scene.test.ts`:
+- [x] **Step 1: Write the failing tests** — create `frontend/lib/scene.test.ts`:
 
 ```ts
 // Tests for deriveSceneState: the pure State -> SceneState mapping that drives
@@ -165,14 +165,14 @@ describe("deriveSceneState", () => {
 });
 ```
 
-- [ ] **Step 2: Run to verify failure**
+- [x] **Step 2: Run to verify failure**
 
 Run: `bun test frontend/lib/scene.test.ts`
 Expected: FAIL — cannot resolve `./scene`.
 
-- [ ] **Step 3: Implement `frontend/lib/scene.ts`** per the mapping rules above (module comment: what SceneState is and that it is the only tested seam of the 3D card). No three/react imports here.
+- [x] **Step 3: Implement `frontend/lib/scene.ts`** per the mapping rules above (module comment: what SceneState is and that it is the only tested seam of the 3D card). No three/react imports here.
 
-- [ ] **Step 4: Verify green**
+- [x] **Step 4: Verify green**
 
 Run: `bun test frontend/lib/scene.test.ts` then `bun test` and `bun run typecheck`
 Expected: new tests PASS, full suite passes, typecheck clean.
