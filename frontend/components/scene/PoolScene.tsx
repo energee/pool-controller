@@ -82,15 +82,54 @@ function deckGeometry(): THREE.ExtrudeGeometry {
   return new THREE.ExtrudeGeometry(outer, { depth: 0.25, bevelEnabled: false });
 }
 
-// Basin walls: a thin vertical ring from under the deck down past the deepest
-// point of the 4'-5'-4' floor (the opaque floor hides the excess at the ends).
+// Basin walls: a vertical ring from the waterline down past the deepest point
+// of the 4'-5'-4' floor (the opaque floor hides the excess at the ends). Inset
+// a hair inside the deck cutout so the liner faces never z-fight the deck.
 function wallsGeometry(): THREE.ExtrudeGeometry {
-  const outer = rrAt(0, 0, POOL_SIZE[0], POOL_SIZE[1], POOL_RADIUS);
+  const outer = rrAt(0, 0, POOL_SIZE[0] - 0.02, POOL_SIZE[1] - 0.02, POOL_RADIUS - 0.01);
   outer.holes.push(
-    rrAt(0, 0, POOL_SIZE[0] - 0.12, POOL_SIZE[1] - 0.12, POOL_RADIUS - 0.06),
+    rrAt(0, 0, POOL_SIZE[0] - 0.16, POOL_SIZE[1] - 0.16, POOL_RADIUS - 0.08),
   );
-  return new THREE.ExtrudeGeometry(outer, { depth: 1.5, bevelEnabled: false });
+  return new THREE.ExtrudeGeometry(outer, { depth: 1.8, bevelEnabled: false });
 }
+
+// The walls carry the same procedural tile liner as the floor: tiling plane
+// picked per-fragment by the dominant wall direction, darkening with depth.
+const WALL_VERT = /* glsl */ `
+varying vec3 vPos;
+varying vec3 vNorm;
+void main() {
+  vPos = position;
+  vNorm = normal;
+  gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+}
+`;
+
+const WALL_FRAG = /* glsl */ `
+varying vec3 vPos;
+varying vec3 vNorm;
+float hash21(vec2 p) {
+  p = fract(p * vec2(234.34, 435.345));
+  p += dot(p, p + 34.23);
+  return fract(p.x * p.y);
+}
+void main() {
+  // shape space: x/y are plan coords, z runs bottom (0) to waterline (1.8)
+  vec2 tp = (abs(vNorm.x) > abs(vNorm.y)
+    ? vec2(vPos.y, vPos.z)
+    : vec2(vPos.x, vPos.z)) / 0.42;
+  vec2 cell = floor(tp);
+  vec2 f = abs(fract(tp) - 0.5);
+  vec3 tile = mix(vec3(0.75, 0.88, 0.90), vec3(0.56, 0.76, 0.81), hash21(cell) * 0.7);
+  vec2 aa = fwidth(tp) * 1.2;
+  vec2 gs = smoothstep(vec2(0.465) - aa, vec2(0.465), f);
+  vec3 base = mix(tile, vec3(0.90, 0.93, 0.94), max(gs.x, gs.y));
+  float depth = clamp(1.0 - vPos.z / 1.8, 0.0, 1.0);
+  vec3 color = base * vec3(0.62, 0.88, 0.98);
+  color *= mix(1.0, 0.6, depth);
+  gl_FragColor = vec4(color, 1.0);
+}
+`;
 
 export function PoolScene({ scene }: { scene: SceneState }) {
   const coping = React.useMemo(copingGeometry, []);
@@ -116,13 +155,13 @@ export function PoolScene({ scene }: { scene: SceneState }) {
         rotation={[-Math.PI / 2, 0, 0]}
         position={[0, -0.25, 0]}
       />
-      {/* plaster basin walls from the deck underside down to the tile floor */}
+      {/* tile-linered basin walls from the waterline down to the floor */}
       <mesh
         geometry={walls}
         rotation={[-Math.PI / 2, 0, 0]}
         position={[POOL_POS[0], -1.75, POOL_POS[1]]}
       >
-        <meshStandardMaterial color="#b9d4d9" roughness={0.9} />
+        <shaderMaterial vertexShader={WALL_VERT} fragmentShader={WALL_FRAG} />
       </mesh>
 
       {/* pool: white coping ring around the sunken water sheet */}
