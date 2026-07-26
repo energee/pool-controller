@@ -273,16 +273,36 @@ export function Equipment({ scene }: { scene: SceneState }) {
         ) : null}
       </group>
 
+      {/* Pentair IntelliChlor IC40: white ribbed inline cell with a tan label
+          panel and black union nuts joining the pipe at both ends; the body
+          glows teal while generating. */}
       <group position={[7.1, 0, 3.3]} {...hover("chlorinator")}>
-        <mesh position={[0, 0.3, 0]} rotation={[0, 0, Math.PI / 2]}>
-          <capsuleGeometry args={[0.18, 0.7, 8, 16]} />
+        <mesh position={[0, 0.22, 0]}>
+          <boxGeometry args={[0.44, 0.2, 0.18]} />
           <meshStandardMaterial
             ref={chlorMaterial}
-            color="#547b7b"
+            color="#f0efe9"
             emissive="#2dd4bf"
             emissiveIntensity={0}
+            roughness={0.6}
           />
         </mesh>
+        <mesh position={[0, 0.33, 0]}>
+          <boxGeometry args={[0.3, 0.022, 0.14]} />
+          <meshStandardMaterial color="#cbbb9e" roughness={0.7} />
+        </mesh>
+        {[-0.28, 0.28].map((x) => (
+          <mesh key={x} position={[x, 0.22, 0]} rotation={[0, 0, Math.PI / 2]}>
+            <cylinderGeometry args={[0.085, 0.085, 0.09, 12]} />
+            <meshStandardMaterial color="#1e2023" roughness={0.55} />
+          </mesh>
+        ))}
+        {[-0.36, 0.36].map((x) => (
+          <mesh key={x} position={[x, 0.22, 0]} rotation={[0, 0, Math.PI / 2]}>
+            <cylinderGeometry args={[0.05, 0.05, 0.08, 12]} />
+            <meshStandardMaterial color="#f2f2ee" roughness={0.4} />
+          </mesh>
+        ))}
         <Html center distanceFactor={14} position={[0, -0.16, 0]}>
           <div className={labelClass}>CHLORINATOR</div>
         </Html>
