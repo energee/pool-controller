@@ -359,22 +359,22 @@ git commit -m "feat(scene): pool and spa basins with shader-rippled water"
 **Interfaces:**
 - Produces: `export function Equipment({ scene }: { scene: SceneState })` rendering all four units on the pad at z = −2.3.
 
-- [ ] **Step 1: Build the four units** (positions on the pad, y = base height above deck):
+- [x] **Step 1: Build the four units** (positions on the pad, y = base height above deck):
   - **Pump** at `[0.6, 0, -2.3]`: cylinder body r=0.35 h=0.5 + a flat 4-blade impeller cap (4 thin boxes in a group) on top; in `useFrame` rotate the cap `y += dt * (2 + 10 * flow)` only when `scene.flow > 0`.
   - **Filter** at `[2.0, 0, -2.3]`: capsule/cylinder tank r=0.42 h=0.9, neutral `#aab4be`.
   - **Heater** at `[3.5, 0, -2.3]`: box `[1.0, 0.7, 0.8]`; `meshStandardMaterial` with `emissive="#ff7a45"`, `emissiveIntensity` lerped toward `scene.heaterOn ? 0.9 : 0`; when `heaterOn`, add drei `<Sparkles count={12} size={2} scale={[0.8, 1.2, 0.8]} color="#e8edf2" speed={0.4}>` above it as steam.
   - **Chlorinator** at `[4.8, 0, -2.3]`: small horizontal capsule r=0.18 length 0.7 inline with the return pipe; emissive `#2dd4bf` with intensity lerped toward `scene.chlorPct > 0 && scene.flow > 0 ? 0.2 + 0.7 * (scene.chlorPct / 100) : 0`.
   - Labels: drei `<Html center distanceFactor={14}>` under each unit with a `text-[10px] text-muted-foreground` div: PUMP / FILTER / HEATER / CHLORINATOR.
-- [ ] **Step 2: Hover tooltips** — `onPointerOver`/`onPointerOut` per unit sets a `hovered` string state; drei `useCursor(hovered !== null)`; when hovered, render an Html tooltip (`bg-popover border rounded-md px-2.5 py-1.5 text-xs shadow-md`) above that unit:
+- [x] **Step 2: Hover tooltips** — `onPointerOver`/`onPointerOut` per unit sets a `hovered` string state; drei `useCursor(hovered !== null)`; when hovered, render an Html tooltip (`bg-popover border rounded-md px-2.5 py-1.5 text-xs shadow-md`) above that unit:
   - Pump: `{rpm} RPM · {gpm} GPM · {watts} W` (skip null fields; "no data" if all null)
   - Heater: `Heater {heaterOn ? "ON" : "off"}`
   - Chlorinator: `{chlorPct}% output · {saltPpm} ppm salt` (salt line only when non-null)
   - Filter: `Filter` (static)
-- [ ] **Step 3: Spa bubbles + floating temps** in `PoolScene.tsx`:
+- [x] **Step 3: Spa bubbles + floating temps** in `PoolScene.tsx`:
   - When `scene.spaOn && scene.flow > 0`: `<Sparkles count={30} size={2.5} color="#cfeefb" speed={0.6 + scene.flow} scale={[1.6, 0.9, 1.6]} position={[2.6, 1.15, 2.0]} />`.
   - Over each basin, when its temp is non-null: `<Html center>` with `text-sm font-medium text-foreground/85` showing `{Math.round(temp)}°`, positioned above pool `[-2.6, 1.6, 1.1]` and spa `[2.6, 1.9, 2.0]`.
-- [ ] **Step 4: Validate** — `bun run typecheck && bun test`. Expected: clean.
-- [ ] **Step 5: Commit**
+- [x] **Step 4: Validate** — `bun run typecheck && bun test`. Expected: clean.
+- [x] **Step 5: Commit**
 
 ```bash
 git add frontend/components/scene

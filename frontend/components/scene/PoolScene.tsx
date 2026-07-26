@@ -1,6 +1,9 @@
 // The scene graph for the pool system card: lighting, deck slab, and (in later
 // tasks) basins, equipment, and pipes. Pure presentation of a SceneState.
+import { Html, Sparkles } from "@react-three/drei";
+
 import type { SceneState } from "../../lib/scene";
+import { Equipment } from "./Equipment";
 import { Water } from "./Water";
 
 export function PoolScene({ scene }: { scene: SceneState }) {
@@ -33,6 +36,31 @@ export function PoolScene({ scene }: { scene: SceneState }) {
         flow={scene.spaOn ? scene.flow : 0}
         position={[2.6, 1.02, 2.0]}
       />
+      <Equipment scene={scene} />
+      {scene.spaOn && scene.flow > 0 ? (
+        <Sparkles
+          count={30}
+          size={2.5}
+          color="#cfeefb"
+          speed={0.6 + scene.flow}
+          scale={[1.6, 0.9, 1.6]}
+          position={[2.6, 1.15, 2.0]}
+        />
+      ) : null}
+      {scene.poolTemp == null ? null : (
+        <Html center position={[-2.6, 1.6, 1.1]}>
+          <div className="text-sm font-medium text-foreground/85">
+            {Math.round(scene.poolTemp)}°
+          </div>
+        </Html>
+      )}
+      {scene.spaTemp == null ? null : (
+        <Html center position={[2.6, 1.9, 2.0]}>
+          <div className="text-sm font-medium text-foreground/85">
+            {Math.round(scene.spaTemp)}°
+          </div>
+        </Html>
+      )}
     </group>
   );
 }
