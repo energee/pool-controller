@@ -189,12 +189,12 @@ const VARIANTS: Record<"pool" | "spa", Variant> = {
     rateScale: 1,
   },
   spa: {
-    // No floor mesh: the dark tub interior reads fine through the higher
-    // minimum alpha; bubbles + ripples carry the motion.
+    // The tub is hollow (open shell in PoolScene) — this floor is the spa's
+    // interior bottom, so the water has something lit to refract onto.
     res: [64, 64],
     segments: [32, 32],
     depth: 0.35,
-    floor: false,
+    floor: true,
     alphaRange: [0.55, 0.95],
     tileSize: 0.28,
     jets: [

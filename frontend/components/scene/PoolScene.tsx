@@ -123,11 +123,16 @@ export function PoolScene({ scene }: { scene: SceneState }) {
         position={[POOL_POS[0], 0.055, POOL_POS[1]]}
       />
 
-      {/* spa: dark hot tub on the deck with its own round water surface */}
+      {/* spa: hollow dark hot tub — an open double-sided shell so the water
+          surface has a lit interior floor (Water's floor mesh) beneath it */}
       <group position={[SPA_POS[0], 0, SPA_POS[1]]}>
         <mesh position={[0, 0.39, 0]}>
-          <cylinderGeometry args={[1.08, 1.02, 0.78, 24]} />
-          <meshStandardMaterial color="#4a5058" roughness={0.7} />
+          <cylinderGeometry args={[1.08, 1.02, 0.78, 24, 1, true]} />
+          <meshStandardMaterial
+            color="#4a5058"
+            roughness={0.7}
+            side={THREE.DoubleSide}
+          />
         </mesh>
         <mesh position={[0, 0.78, 0]} rotation={[-Math.PI / 2, 0, 0]}>
           <torusGeometry args={[1.0, 0.08, 10, 32]} />
