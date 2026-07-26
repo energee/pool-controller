@@ -3,7 +3,6 @@
 import * as React from "react";
 
 import { Badge } from "./ui/badge";
-import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
 import { cn } from "../lib/utils";
 
 // A labelled key/value line with a hairline top border.
@@ -15,7 +14,7 @@ export function Row({
   children: React.ReactNode;
 }) {
   return (
-    <div className="flex justify-between gap-2.5 py-[7px] border-t border-border first:border-t-0">
+    <div className="flex justify-between gap-2.5 py-1">
       <span className="text-muted-foreground">{k}</span>
       <span className="text-foreground text-right">{children}</span>
     </div>
@@ -31,7 +30,7 @@ export function Tile({
   children: React.ReactNode;
 }) {
   return (
-    <div className="rounded-md border border-border bg-popover px-3 py-2.5">
+    <div className="rounded-md bg-popover px-3 py-2.5">
       <div className="text-[11px] text-muted-foreground">{k}</div>
       <div className="text-xl font-medium mt-0.5 tracking-tight">
         {children}
@@ -61,16 +60,16 @@ export function DashCard({
   className?: string;
   children: React.ReactNode;
 }) {
+  // Flat section, not a boxed card: the uppercase title is the only separator.
+  // Inner controls (tiles, switch rows, inputs) carry their own affordances.
   return (
-    <Card className={cn("transition-colors hover:border-border", className)}>
-      <CardHeader>
-        <CardTitle>
-          {title}
-          {experimental ? <ExperimentalBadge /> : null}
-        </CardTitle>
-      </CardHeader>
-      <CardContent>{children}</CardContent>
-    </Card>
+    <section className={className}>
+      <h3 className="mb-2 text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">
+        {title}
+        {experimental ? <ExperimentalBadge /> : null}
+      </h3>
+      {children}
+    </section>
   );
 }
 
@@ -83,7 +82,7 @@ export function Grid2({
   children: React.ReactNode;
 }) {
   return (
-    <div className={cn("grid grid-cols-2 gap-2.5", className)}>{children}</div>
+    <div className={cn("grid grid-cols-2 gap-2", className)}>{children}</div>
   );
 }
 

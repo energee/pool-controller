@@ -1,28 +1,46 @@
-// Sticky header: the easytouch mark, the connection pill (dot + status text),
-// and a Refresh button. Two independent facts drive it: `reachable` (the poll
+// Sticky header: the Pentair logo, the easytouch mark, and the connection pill
+// (dot + status text). No manual Refresh button — the app polls every 3s, so the
+// pill's freshness reading is the whole story. The logo is `frontend/pentair.svg`,
+// copied into static/ by `bun run build` and served from /static/.
+// Two independent facts drive the pill: `reachable` (the poll
 // reached the backend) and `busConnected` (the backend is talking to the pool
 // controller). Pill reads "connected · Ns ago" only when both hold, "disconnected"
 // when the backend is up but the bus is down, and "unreachable" when the poll fails.
-import { Button } from "./ui/button";
 import { cn } from "../lib/utils";
+
+/** How the Pentair mark is rendered. Its fills are hardcoded navy (#0c3471) and
+ *  green (#64a70b), and this dashboard has a single dark theme (`--background:
+ *  #08090a`, no `.dark` toggle), so navy-on-near-black needs a treatment:
+ *  - "invert" — knock it out to solid white: legible, but loses the green.
+ *  - "brand"  — leave the original colors alone (near-invisible here).
+ *  - "chip"   — keep brand color on a white rounded plate behind the mark.
+ *  These are unconditional, not `dark:`-prefixed: that variant is defined as
+ *  `&:is(.dark *)` and nothing in the tree carries the class, so it never fires. */
+export type LogoTreatment = "invert" | "brand" | "chip";
+
+const LOGO_CLASS: Record<LogoTreatment, string> = {
+  invert: "brightness-0 invert",
+  brand: "",
+  chip: "bg-white rounded px-1.5 py-1 box-content",
+};
 
 export function Header({
   reachable,
   busConnected,
   age,
   error,
-  refresh,
+  logoTreatment = "invert",
 }: {
   reachable: boolean;
   busConnected: boolean;
   age: number | null;
   error: string | null;
-  refresh: () => Promise<void>;
+  /** Rendering treatment for the Pentair mark (default: "invert"). */
+  logoTreatment?: LogoTreatment;
 }) {
   // Green only when the bus is connected AND the snapshot is fresh (<30s).
   const live = reachable && busConnected && (age == null || age < 30);
-  const ageText =
-    age == null ? "no packets yet" : Math.round(age) + "s ago";
+  const ageText = age == null ? "no packets yet" : Math.round(age) + "s";
   const text = !reachable
     ? "unreachable" + (error ? ": " + error : "")
     : busConnected
@@ -30,23 +48,28 @@ export function Header({
       : "disconnected" + (error ? ": " + error : "");
 
   return (
-    <header className="sticky top-0 z-10 flex items-center gap-3 px-5 py-3 bg-background/70 backdrop-blur border-b border-border">
-      <span className="text-[15px] font-semibold tracking-tight">easytouch</span>
-      <span className="inline-flex items-center gap-2 text-xs text-muted-foreground bg-popover border border-border rounded-full px-2.5 py-1">
+    <header className="sticky top-0 z-10 flex items-center gap-3 px-5 h-12 bg-background/70 backdrop-blur">
+      <img
+        src="/static/pentair.svg"
+        alt="Pentair"
+        className={cn("h-5 w-auto shrink-0", LOGO_CLASS[logoTreatment])}
+      />
+      <span className="text-[15px] font-semibold tracking-tight leading-none">
+        easytouch
+      </span>
+      {/* min-w-0 + truncate: long error strings shorten instead of wrapping the
+          pill onto two lines; tabular-nums keeps "12s" from jittering the width. */}
+      <span className="inline-flex min-w-0 items-center gap-2 text-[13px] font-medium leading-none text-foreground/85 bg-accent rounded-full px-3 py-1.5">
         <span
           className={cn(
-            "w-[7px] h-[7px] rounded-full",
+            "w-[7px] h-[7px] shrink-0 rounded-full",
             live
               ? "bg-success shadow-[0_0_0_3px_rgba(76,195,138,0.16)]"
               : "bg-destructive shadow-[0_0_0_3px_rgba(229,83,75,0.16)]"
           )}
         />
-        <span>{text}</span>
+        <span className="truncate whitespace-nowrap tabular-nums">{text}</span>
       </span>
-      <span className="flex-1" />
-      <Button variant="outline" size="sm" onClick={refresh}>
-        Refresh
-      </Button>
     </header>
   );
 }

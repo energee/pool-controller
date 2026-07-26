@@ -1,9 +1,10 @@
-// Schedules card. Lists active schedules and a single shared slot editor that
-// POSTs /schedule {id, circuit, start, end, days}. Clicking an active row loads
-// it into the editor (existing schedules are editable); "New" targets the lowest
-// empty slot. Circuit is a dropdown and days are toggle chips — nothing is
-// free-typed except the times. Editor state is local so the 3s poll (which only
-// refreshes the row list) never clobbers an in-progress edit.
+// Schedules card. Active schedules read as sentences ("pool · 8:00 AM–5:00 PM ·
+// Every day"); tapping one opens the editor on it, "+ Add schedule" opens it on
+// the lowest free slot. Controller slot ids stay internal — nobody thinks in
+// slots (they remain visible under Diagnostics → Raw). The editor POSTs
+// /schedule {id, circuit, start, end, days}; circuit is a dropdown, times are
+// native pickers, days are toggle chips. Editor state is local so the 3s poll
+// (which only refreshes the row list) never clobbers an in-progress edit.
 import * as React from "react";
 
 import { postJSON } from "../../lib/api";
@@ -41,9 +42,9 @@ export function SchedulesCard({
     .sort((a, b) => Number(a) - Number(b))
     .map((id) => map[id]);
   const active = all.filter((x) => x.active);
-  const empty = SCHED_SLOTS - active.length;
 
-  const [editId, setEditId] = React.useState("1");
+  // null = editor closed; a slot id = editing/creating that slot.
+  const [editId, setEditId] = React.useState<string | null>(null);
   const [circuit, setCircuit] = React.useState("6"); // default: pool
   const [start, setStart] = React.useState("08:00");
   const [end, setEnd] = React.useState("17:00");
@@ -87,9 +88,11 @@ export function SchedulesCard({
       days: setToDays(daySet),
     });
     await refresh();
+    setEditId(null); // sentence list is the resting state
   };
 
-  const editing = map[editId]?.active;
+  const editing = editId != null && map[editId]?.active;
+  const haveFreeSlot = active.length < SCHED_SLOTS;
 
   let list: React.ReactNode;
   if (!all.length) {
@@ -97,7 +100,7 @@ export function SchedulesCard({
       <Muted>no schedules cached yet — they load as the controller replies.</Muted>
     );
   } else if (!active.length) {
-    list = <Muted>no schedules programmed ({empty} empty slots).</Muted>;
+    list = <Muted>no schedules programmed.</Muted>;
   } else {
     list = (
       <div className="space-y-1">
@@ -106,24 +109,21 @@ export function SchedulesCard({
             key={x.id}
             onClick={() => load(x)}
             className={cn(
-              "flex w-full items-center justify-between gap-2.5 rounded-md border px-2.5 py-1.5 text-left text-[13px] transition-colors hover:border-input",
-              String(x.id) === editId
-                ? "border-input bg-popover"
-                : "border-border bg-popover/40",
+              "flex w-full items-center justify-between gap-2.5 rounded-md px-2.5 py-2 text-left text-[13px] transition-colors hover:bg-accent",
+              String(x.id) === editId ? "bg-accent" : "bg-popover",
             )}
           >
-            <span className="text-muted-foreground">
-              #{x.id} {x.circuit_name || circuitName(x.circuit ?? 0)}
+            <span className="font-medium">
+              {x.circuit_name || circuitName(x.circuit ?? 0)}
             </span>
             <span className="text-right">
-              {time12(x.start) + "–" + time12(x.end)}
+              {time12(x.start) + " – " + time12(x.end)}
               <span className="ml-1.5 text-muted-foreground">
-                {(x.days || []).join(",")}
+                {(x.days || []).join(", ")}
               </span>
             </span>
           </button>
         ))}
-        {empty ? <Muted className="pt-1">+ {empty} empty slots</Muted> : null}
       </div>
     );
   }
@@ -132,98 +132,91 @@ export function SchedulesCard({
     <DashCard title="Schedules">
       {list}
 
-      <div className="mt-3 flex items-center justify-between">
-        <Label>{editing ? "Editing #" + editId : "New slot #" + editId}</Label>
-        <Button variant="outline" size="sm" onClick={newSlot}>
-          New
+      {editId == null ? (
+        <Button
+          variant="outline"
+          size="sm"
+          className="mt-2 w-full"
+          disabled={!haveFreeSlot}
+          onClick={newSlot}
+        >
+          {haveFreeSlot ? "+ Add schedule" : "all 12 schedules in use"}
         </Button>
-      </div>
-
-      <Grid2 className="mt-2">
-        <div className="space-y-1.5">
-          <Label>Circuit</Label>
-          <Select value={circuit} onValueChange={setCircuit}>
-            <SelectTrigger>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {CIRCUITS.map(([num, name]) => (
-                <SelectItem key={num} value={String(num)}>
-                  {name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-        <div className="space-y-1.5">
-          <Label>Slot</Label>
-          <Select value={editId} onValueChange={setEditId}>
-            <SelectTrigger>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {Array.from({ length: SCHED_SLOTS }, (_, i) => i + 1).map((i) => {
-                const s = map[String(i)];
-                return (
-                  <SelectItem key={i} value={String(i)}>
-                    {i} · {s?.active ? s.circuit_name || circuitName(s.circuit ?? 0) : "empty"}
-                  </SelectItem>
-                );
-              })}
-            </SelectContent>
-          </Select>
-        </div>
-        <div className="space-y-1.5">
-          <Label htmlFor="sch_start">Start</Label>
-          <Input
-            id="sch_start"
-            type="time"
-            value={start}
-            onChange={(e) => setStart(e.target.value)}
-          />
-        </div>
-        <div className="space-y-1.5">
-          <Label htmlFor="sch_end">End</Label>
-          <Input
-            id="sch_end"
-            type="time"
-            value={end}
-            onChange={(e) => setEnd(e.target.value)}
-          />
-        </div>
-      </Grid2>
-
-      <div className="mt-2.5 space-y-1.5">
-        <Label>Days</Label>
-        <div className="flex flex-wrap gap-1.5">
-          {DAYS.map(([tok, lbl]) => (
-            <Button
-              key={tok}
-              variant={daySet.has(tok) ? "default" : "outline"}
-              size="sm"
-              className="w-9 px-0"
-              onClick={() => toggleDay(tok)}
-            >
-              {lbl}
+      ) : (
+        <>
+          <div className="mt-2 flex items-center justify-between">
+            <Label>{editing ? "Edit schedule" : "New schedule"}</Label>
+            <Button variant="ghost" size="sm" onClick={() => setEditId(null)}>
+              Cancel
             </Button>
-          ))}
-          <Button
-            variant={daySet.size === DAYS.length ? "default" : "outline"}
-            size="sm"
-            onClick={() => setDaySet(new Set(DAYS.map(([t]) => t)))}
-          >
-            Every
-          </Button>
-        </div>
-      </div>
+          </div>
 
-      <Button
-        className="mt-2.5"
-        disabled={daySet.size === 0}
-        onClick={save}
-      >
-        Save schedule
-      </Button>
+          <Grid2 className="mt-2">
+            <div className="space-y-1.5">
+              <Label>Circuit</Label>
+              <Select value={circuit} onValueChange={setCircuit}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {CIRCUITS.map(([num, name]) => (
+                    <SelectItem key={num} value={String(num)}>
+                      {name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div />
+            <div className="space-y-1.5">
+              <Label htmlFor="sch_start">Start</Label>
+              <Input
+                id="sch_start"
+                type="time"
+                value={start}
+                onChange={(e) => setStart(e.target.value)}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="sch_end">End</Label>
+              <Input
+                id="sch_end"
+                type="time"
+                value={end}
+                onChange={(e) => setEnd(e.target.value)}
+              />
+            </div>
+          </Grid2>
+
+          <div className="mt-2.5 space-y-1.5">
+            <Label>Days</Label>
+            <div className="flex flex-wrap gap-1.5">
+              {DAYS.map(([tok, lbl]) => (
+                <Button
+                  key={tok}
+                  variant={daySet.has(tok) ? "default" : "outline"}
+                  size="sm"
+                  className="w-9 px-0"
+                  onClick={() => toggleDay(tok)}
+                >
+                  {lbl}
+                </Button>
+              ))}
+              <Button
+                variant={daySet.size === DAYS.length ? "default" : "outline"}
+                size="sm"
+                onClick={() => setDaySet(new Set(DAYS.map(([t]) => t)))}
+              >
+                Every
+              </Button>
+            </div>
+          </div>
+
+          <Button className="mt-2.5" disabled={daySet.size === 0} onClick={save}>
+            Save schedule
+          </Button>
+        </>
+      )}
     </DashCard>
   );
 }

@@ -73,9 +73,11 @@ def test_bundle_shows_salt_chlorinator():
 def test_source_wires_all_sections_and_controls():
     # every equipment-coverage feature is rendered/controlled in the React app.
     src = _all_src()
+    # "Apply heat" is gone by design: the thermostat card auto-sends after the
+    # steppers settle (SETTLE_MS in HeatCard) instead of using a submit button.
     for marker in ("ValvesCard", "NamesCard", "IntelliChemCard", "LightsCard",
                    "CircuitsCard", "ChlorinatorCard", "SchedulesCard", "PumpsCard",
-                   "Set output", "Set clock to now", "Apply heat", "Save schedule"):
+                   "Set output", "Set clock to now", "SETTLE_MS", "Save schedule"):
         assert marker in src, marker
 
 

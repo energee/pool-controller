@@ -1,13 +1,14 @@
-// The dashboard root: drives the 3s poll via useDashboard and lays out the
-// at-a-glance summary bar (all live readings + alerts), then one card per
-// control surface — primary controls first (Circuits, Heat, Chlorinator,
-// Schedules), then system (Pumps & clock), then the experimental/conditional
-// cards (IntelliChem, Lights, Valves, Names), and finally the collapsed Raw card.
-// Live readings live only in the summary bar; cards carry controls + their own
-// private readings (salt, pH, watts), so nothing is shown twice.
+// The dashboard root: drives the 3s poll via useDashboard and lays out a
+// freeze/service alert banner (only when active), then one card per control
+// surface — primary controls first (Equipment, Heat, Chlorinator, Schedules),
+// then system (Pumps & clock) and Lights. There is no separate summary strip:
+// the Equipment tiles and thermostat *are* the at-a-glance readings (temps,
+// what's running, heater state), so nothing is shown twice. The unverified
+// reverse-engineering surfaces (IntelliChem, Valves, Names — shown only when
+// their data exists — plus Raw frames) live behind a collapsed Diagnostics
+// disclosure so a pool owner sees ~5 cards, not 10.
 import { useDashboard } from "../hooks/useDashboard";
 import { Header } from "./Header";
-import { SummaryBar } from "./SummaryBar";
 import { ChlorinatorCard } from "./cards/ChlorinatorCard";
 import { CircuitsCard } from "./cards/CircuitsCard";
 import { HeatCard } from "./cards/HeatCard";
@@ -30,11 +31,20 @@ export function Dashboard() {
         busConnected={state?.connected ?? false}
         age={age}
         error={error}
-        refresh={refresh}
+        logoTreatment="invert" // "invert" | "brand" | "chip" — see Header.tsx
       />
       <div className="max-w-[1080px] mx-auto p-5">
-        <SummaryBar status={s.status} />
-        <main className="grid gap-3.5 grid-cols-[repeat(auto-fill,minmax(300px,1fr))]">
+        {s.status?.freeze || s.status?.service ? (
+          <div className="mb-3.5 rounded-lg bg-destructive/15 px-3.5 py-2.5 text-sm font-medium text-destructive">
+            {[
+              s.status.freeze ? "Freeze protect active" : null,
+              s.status.service ? "Service mode" : null,
+            ]
+              .filter(Boolean)
+              .join(" · ")}
+          </div>
+        ) : null}
+        <main className="grid gap-x-6 gap-y-5 grid-cols-[repeat(auto-fill,minmax(300px,1fr))]">
           <CircuitsCard status={s.status} refresh={refresh} />
           <HeatCard heat={s.heat} refresh={refresh} />
           <ChlorinatorCard chlor={s.chlorinator} refresh={refresh} />
@@ -45,11 +55,22 @@ export function Dashboard() {
             version={s.version}
             refresh={refresh}
           />
-          <IntelliChemCard chem={s.intellichem} />
           <LightsCard refresh={refresh} />
-          <ValvesCard valves={s.valves} />
-          <NamesCard names={s.names} />
-          <RawCard raw={s.raw} />
+          {/* Native <details>: open/closed survives the 3s re-render because React
+              never touches the attribute after mount. */}
+          <details className="col-span-full">
+            <summary className="cursor-pointer py-1 text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground list-none hover:text-foreground">
+              Diagnostics ▸
+            </summary>
+            <div className="mt-3.5 grid gap-x-6 gap-y-5 grid-cols-[repeat(auto-fill,minmax(300px,1fr))]">
+              {s.intellichem ? <IntelliChemCard chem={s.intellichem} /> : null}
+              {s.valves ? <ValvesCard valves={s.valves} /> : null}
+              {s.names && Object.keys(s.names).length ? (
+                <NamesCard names={s.names} />
+              ) : null}
+              <RawCard raw={s.raw} />
+            </div>
+          </details>
         </main>
       </div>
     </>

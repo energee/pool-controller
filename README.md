@@ -281,14 +281,25 @@ python -m easytouch --port socket://192.168.4.70:4000 serve --http-host 0.0.0.0 
 bundled by Bun into `easytouch/static/` (`app.js` + `index.html`/`style.css`);
 the committed build output is what the server ships, so **no Node/Bun is needed
 at runtime** — only after editing `frontend/` (run `bun run build`). It polls
-`GET /state` every ~3s and renders a card per section — controller status, heat/setpoints, **salt /
-chlorinator**, circuits, **IntelliBrite lights**, pumps, schedules, IntelliChem
-(when present), and the raw/undecoded frames. Controls are editable inline:
-circuit on/off toggles, heat setpoints + modes, chlorinator output %, controller
-clock, IntelliBrite lights, an experimental pump-RPM control, and schedule slots
-(schedule writes — and the light / pump / IntelliChem cards — are unverified on
-this controller, so they're labelled *experimental*). Re-rendering pauses while a control is focused or was
-just changed, so inputs never jump under you. The JSON endpoint index moved to
+`GET /state` every ~3s (no manual refresh button — the header pill shows
+freshness). There is no separate summary strip: the controls are the readings.
+A freeze-protect / service-mode banner appears only when active; below it, one
+flat titled section per control surface (no card chrome — inner tiles and
+inputs carry their own affordances) — equipment (Pool/Spa as tap tiles with a
+pending "confirming…" state; every
+circuit is the same tap tile), a thermostat-style heat section (−/+ steppers that
+auto-apply after a pause, segmented mode control — no Apply button), **salt /
+chlorinator**, schedules (readable rows; "+ Add schedule" picks a free
+controller slot automatically), pumps & clock, and
+**IntelliBrite lights**. The unverified reverse-engineering surfaces
+(IntelliChem, valves, circuit-name config — shown only when their data exists —
+plus the raw/undecoded frames) are collapsed behind a **Diagnostics**
+disclosure. Controls are editable inline; schedule writes — and the light /
+pump / IntelliChem cards — are unverified on this controller, so they're
+labelled *experimental*. Re-rendering pauses while a control is focused or was
+just changed, so inputs never jump under you. If the bus goes silent for 30s
+the server declares it dead, reconnects, and the pill turns red instead of
+sitting on stale data. The JSON endpoint index moved to
 `GET /api`; the page is a pure client of the data routes below.
 
 ### Salt / chlorinator
