@@ -183,10 +183,9 @@ const POOL = {
   tileSize: 0.42,
   heightScale: 1.6,
   // One pressurized return jet entering at the pool's FRONT-LEFT (sim UV
-  // v=0 is the front edge; the run from the cell is underground), aimed down
-  // the length of the pool like a real eyeball fitting, driving circulation
-  // toward the front-right skimmer.
-  jets: [{ pos: [0.2, 0.06], dir: [0.75, 0.66] }] as Jet[],
+  // v=0 is the front edge; the run from the cell is underground), firing
+  // STRAIGHT into the pool, perpendicular to the wall.
+  jets: [{ pos: [0.2, 0.06], dir: [0, 1] }] as Jet[],
   jetLen: [1.0, 1.8] as [number, number],
   jetK: 10.5,
   jetOmega: 7.5,
