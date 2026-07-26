@@ -394,6 +394,7 @@ notes.
 | `easytouch/cli.py`        | `python -m easytouch` command-line interface        |
 | `tools/mock_bus.py`       | Fake controller over TCP for hardware-free development |
 | `tests/`                  | Unit tests against real captured frames             |
+| `server/`                 | In-progress TypeScript port of the Python stack (see below) |
 
 ## Tests
 
@@ -404,6 +405,27 @@ pytest
 
 The tests decode real frames captured from the bus, so they guard against
 protocol regressions without needing hardware.
+
+## TypeScript port (in progress)
+
+`server/` is an in-progress port of the Python stack to TypeScript with **zero
+runtime dependencies**, so the whole thing can eventually run on `node` alone.
+It is **not runnable yet** — the Python package under `easytouch/` remains the
+only working server and is what the Pi runs.
+
+Ported and tested so far: the protocol vocabulary, framer, decoders, IntelliChlor
+framer, transport (`node:net` for `socket://`, `stty` + `node:fs` for a device
+path — no native serial module) and the single-owner `BusMonitor`.
+
+```bash
+bun run typecheck
+bun run test          # server + frontend unit tests
+```
+
+The tests reuse the same captured frames as the Python suite, and the monitor is
+verified against `tools/mock_bus.py` over TCP. Still to come: the HTTP API, the
+CLI, a bundled `dist/server.js`, and verification on real hardware — the device
+(`stty`) transport has no coverage until then.
 
 ## Safety
 
