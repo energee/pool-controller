@@ -71,41 +71,42 @@ function PipeRun({
   );
 }
 
-// Waypoints (y=0.1 ground runs). Pool sits around [-1.9, z 0.6]; the
-// equipment pad sits front-right at z=3.3.
-// Suction from the pool's east corner rises into the pump's white inlet stub.
+// Waypoints (y=0.1 ground runs), matching the real equipment room: heater on
+// the west end of the pad, filter center, pump east; the IntelliChlor lies
+// low in front near the heater. Flow: pool -> pump -> filter -> heater ->
+// cell -> return inlet.
 const suctionPool: Point[] = [
   [3.05, 0.1, 1.9],
-  [3.3, 0.1, 2.6],
-  [3.38, 0.1, 3.3],
-  [3.54, 0.23, 3.3],
+  [3.6, 0.1, 2.5],
+  [4.6, 0.1, 2.9],
+  [5.45, 0.1, 3.15],
+  [5.63, 0.23, 3.3],
 ];
 
-// Pump discharge (top stub) over to the filter's upper inlet union.
+// Pump discharge (top stub) runs high back west to the filter's upper union.
 const pumpToFilter: Point[] = [
-  [3.97, 0.52, 3.3],
-  [4.15, 0.45, 3.38],
-  [4.5, 0.32, 3.32],
-  [4.73, 0.32, 3.3],
+  [6.07, 0.52, 3.3],
+  [5.8, 0.47, 3.4],
+  [5.45, 0.34, 3.34],
+  [5.23, 0.32, 3.3],
 ];
 
-// Filter's lower outlet union down and along the pool side of the pad to the
-// heater and chlorinator.
-const filterToChlor: Point[] = [
-  [4.73, 0.18, 3.3],
-  [4.55, 0.14, 3.12],
-  [4.9, 0.1, 2.95],
-  [6.45, 0.1, 2.95],
-  [6.58, 0.16, 3.16],
-  [6.74, 0.22, 3.3],
+// Filter's lower union drops to a floor run past the heater's front and into
+// the cell's east union.
+const filterToCell: Point[] = [
+  [5.23, 0.18, 3.3],
+  [5.42, 0.12, 3.5],
+  [4.9, 0.1, 3.64],
+  [4.05, 0.1, 3.64],
+  [3.82, 0.14, 3.6],
+  [3.66, 0.22, 3.55],
 ];
 
-// Behind the pad and back west to the return inlet on the front edge.
+// Out of the cell's west union and along the deck edge to the return inlet.
 const returnPool: Point[] = [
-  [7.46, 0.22, 3.3],
-  [7.6, 0.14, 3.75],
-  [6.8, 0.1, 4.35],
-  [1.6, 0.1, 4.35],
+  [2.94, 0.22, 3.55],
+  [2.4, 0.14, 3.95],
+  [1.5, 0.1, 4.15],
   [0.9, 0.1, 3.9],
   [0.9, 0.1, 3.15],
 ];
@@ -115,7 +116,7 @@ export function Pipes({ scene }: { scene: SceneState }) {
     <group>
       <PipeRun points={suctionPool} active={scene.poolOn} flow={scene.flow} />
       <PipeRun points={pumpToFilter} active={scene.poolOn} flow={scene.flow} />
-      <PipeRun points={filterToChlor} active={scene.poolOn} flow={scene.flow} />
+      <PipeRun points={filterToCell} active={scene.poolOn} flow={scene.flow} />
       <PipeRun points={returnPool} active={scene.poolOn} flow={scene.flow} />
 
       {scene.chlorPct > 0 && scene.flow > 0 ? (
@@ -124,7 +125,7 @@ export function Pipes({ scene }: { scene: SceneState }) {
           size={1.5}
           color="#5eead4"
           scale={[0.5, 0.4, 1.6]}
-          position={[7.25, 0.3, 3.7]}
+          position={[3.1, 0.35, 3.6]}
         />
       ) : null}
     </group>

@@ -75,7 +75,7 @@ export function Equipment({ scene }: { scene: SceneState }) {
           when running) + volute, white PVC suction/discharge stubs, finned
           motor, and the VS drive box whose LCD lights with flow. Suction
           enters from the west (-x), the motor points east toward the pad. */}
-      <group position={[4.0, 0, 3.3]} {...hover("pump")}>
+      <group position={[6.1, 0, 3.3]} {...hover("pump")}>
         <mesh position={[0, 0.05, 0]}>
           <boxGeometry args={[0.88, 0.07, 0.34]} />
           <meshStandardMaterial color="#cfc7b2" roughness={0.85} />
@@ -193,12 +193,12 @@ export function Equipment({ scene }: { scene: SceneState }) {
           <cylinderGeometry args={[0.034, 0.034, 0.005, 16]} />
           <meshStandardMaterial color="#eef0f0" roughness={0.4} />
         </mesh>
-        {/* inlet (upper) and outlet (lower) unions, facing the pump */}
-        <mesh position={[-0.225, 0.32, 0]} rotation={[0, 0, Math.PI / 2]}>
+        {/* inlet (upper) and outlet (lower) unions, facing the pump (east) */}
+        <mesh position={[0.225, 0.32, 0]} rotation={[0, 0, Math.PI / 2]}>
           <cylinderGeometry args={[0.05, 0.05, 0.13, 12]} />
           <meshStandardMaterial color="#1e2023" roughness={0.55} />
         </mesh>
-        <mesh position={[-0.225, 0.18, 0]} rotation={[0, 0, Math.PI / 2]}>
+        <mesh position={[0.225, 0.18, 0]} rotation={[0, 0, Math.PI / 2]}>
           <cylinderGeometry args={[0.05, 0.05, 0.13, 12]} />
           <meshStandardMaterial color="#1e2023" roughness={0.55} />
         </mesh>
@@ -215,7 +215,7 @@ export function Equipment({ scene }: { scene: SceneState }) {
       {/* Pentair MasterTemp 400: almond cube with a rounded lid, charcoal
           front panel (glows warm while firing), side louvers, black exhaust
           vent at the top corner, and foot pads. */}
-      <group position={[6.1, 0, 3.3]} {...hover("heater")}>
+      <group position={[4.0, 0, 3.3]} {...hover("heater")}>
         {[-0.18, 0.18].map((z) => (
           <mesh key={z} position={[0, 0.03, z]}>
             <boxGeometry args={[0.56, 0.06, 0.12]} />
@@ -276,7 +276,7 @@ export function Equipment({ scene }: { scene: SceneState }) {
       {/* Pentair IntelliChlor IC40: white ribbed inline cell with a tan label
           panel and black union nuts joining the pipe at both ends; the body
           glows teal while generating. */}
-      <group position={[7.1, 0, 3.3]} {...hover("chlorinator")}>
+      <group position={[3.3, 0, 3.55]} {...hover("chlorinator")}>
         <mesh position={[0, 0.22, 0]}>
           <boxGeometry args={[0.44, 0.2, 0.18]} />
           <meshStandardMaterial
