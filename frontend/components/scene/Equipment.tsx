@@ -163,7 +163,7 @@ export function Equipment({ scene }: { scene: SceneState }) {
       {/* Pentair Clean & Clear Plus cartridge filter: tall almond tank with a
           domed lid, black band clamp at the seam, pressure gauge on top, and
           two black inlet/outlet unions facing the pump (the pipes plug in). */}
-      <group position={[6.3, 0, 2.4]} rotation={[0, -Math.PI / 2, 0]} {...hover("filter")}>
+      <group position={[6.3, 0, 2.4]} rotation={[0, Math.PI, 0]} {...hover("filter")}>
         <mesh position={[0, 0.07, 0]}>
           <cylinderGeometry args={[0.16, 0.21, 0.14, 20]} />
           <meshStandardMaterial color="#ded5bf" roughness={0.8} />
@@ -193,7 +193,7 @@ export function Equipment({ scene }: { scene: SceneState }) {
           <cylinderGeometry args={[0.034, 0.034, 0.005, 16]} />
           <meshStandardMaterial color="#eef0f0" roughness={0.4} />
         </mesh>
-        {/* inlet (upper) and outlet (lower) unions, facing the pump (east) */}
+        {/* inlet (upper) and outlet (lower) unions, facing the pool (forward) */}
         <mesh position={[0.225, 0.32, 0]} rotation={[0, 0, Math.PI / 2]}>
           <cylinderGeometry args={[0.05, 0.05, 0.13, 12]} />
           <meshStandardMaterial color="#1e2023" roughness={0.55} />

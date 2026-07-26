@@ -82,29 +82,36 @@ const suctionPool: Point[] = [
   [6.3, 0.24, 4.0],
 ];
 
-// Pump discharge (top stub) runs back along the pad to the filter's unions.
+// Pump discharge (top stub) arcs over and into the filter's upper union,
+// which faces the pool (west).
 const pumpToFilter: Point[] = [
   [6.3, 0.52, 3.53],
-  [6.4, 0.46, 3.25],
-  [6.35, 0.35, 2.82],
-  [6.3, 0.32, 2.63],
+  [6.15, 0.46, 3.2],
+  [5.85, 0.36, 2.7],
+  [5.92, 0.32, 2.48],
+  [6.07, 0.32, 2.4],
 ];
 
-// Filter's lower union drops and runs along the pad's east side into the
-// heater (per the owner's schematic: filter feeds the heater directly).
+// Filter's lower union wraps AROUND the heater (behind it, along the deck
+// edge) and enters from its pool face — the schematic's around-the-outside
+// run.
 const filterToHeater: Point[] = [
-  [6.3, 0.18, 2.63],
-  [6.52, 0.12, 2.45],
-  [6.74, 0.1, 2.0],
-  [6.6, 0.13, 1.75],
-  [6.45, 0.18, 1.6],
+  [6.07, 0.18, 2.4],
+  [5.95, 0.14, 2.2],
+  [6.3, 0.1, 2.0],
+  [6.85, 0.1, 1.8],
+  [6.85, 0.1, 0.85],
+  [6.4, 0.12, 0.7],
+  [6.08, 0.16, 0.95],
+  [6.02, 0.18, 1.15],
 ];
 
-// Out of the heater's pool side into the cell, which sits between the heater
-// and the pool.
+// Out of the heater's pool face (next to the inlet) into the cell, which
+// sits between the heater and the pool.
 const heaterToCell: Point[] = [
-  [6.02, 0.18, 1.35],
-  [5.8, 0.15, 1.1],
+  [6.02, 0.18, 1.6],
+  [5.82, 0.15, 1.42],
+  [5.62, 0.2, 1.15],
   [5.55, 0.22, 0.99],
 ];
 
