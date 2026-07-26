@@ -410,22 +410,32 @@ protocol regressions without needing hardware.
 
 `server/` is an in-progress port of the Python stack to TypeScript with **zero
 runtime dependencies**, so the whole thing can eventually run on `node` alone.
-It is **not runnable yet** — the Python package under `easytouch/` remains the
-only working server and is what the Pi runs.
+The Python package under `easytouch/` is still what the Pi runs; the port is not
+deployed yet.
 
-Ported and tested so far: the protocol vocabulary, framer, decoders, IntelliChlor
-framer, transport (`node:net` for `socket://`, `stty` + `node:fs` for a device
-path — no native serial module) and the single-owner `BusMonitor`.
+The API and CLI now work end-to-end. Run it exactly like the Python one:
 
 ```bash
-bun run typecheck
+bun server/cli.ts --port socket://127.0.0.1:4000 serve --http-port 8080
+bun server/cli.ts --port /dev/ttyUSB0 status
 bun run test          # server + frontend unit tests
+bun run typecheck
 ```
 
-The tests reuse the same captured frames as the Python suite, and the monitor is
-verified against `tools/mock_bus.py` over TCP. Still to come: the HTTP API, the
-CLI, a bundled `dist/server.js`, and verification on real hardware — the device
-(`stty`) transport has no coverage until then.
+Ported: protocol vocabulary, framer, decoders, IntelliChlor framer, transport
+(`node:net` for `socket://`, `stty` + `node:fs` for a device path — no native
+serial module), the single-owner `BusMonitor`, the HTTP JSON API (same routes,
+same JSON, same 200/202/400/503 semantics) and the CLI.
+
+Unlike the Python CLI, the TypeScript write commands drive a `BusMonitor` and
+confirm against its cache — the same path the HTTP API uses — rather than a
+second set of blocking request/confirm loops.
+
+The tests reuse the same captured frames as the Python suite, and both stacks are
+verified against `tools/mock_bus.py`; `GET /state` was compared key-for-key
+between the two servers. Still to come: a bundled `dist/server.js`, the systemd
+unit, and hardware verification — the device (`stty`) transport has no coverage
+until it runs against a real adapter.
 
 ## Safety
 
