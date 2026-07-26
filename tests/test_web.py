@@ -72,12 +72,15 @@ def test_bundle_shows_salt_chlorinator():
 
 def test_source_wires_all_sections_and_controls():
     # every equipment-coverage feature is rendered/controlled in the React app.
+    # Controls are matched by component name or aria-label, not button copy —
+    # copy is free to change with a redesign; the accessible name is the
+    # contract. ("Apply heat"/"Set output" buttons are gone by design: steppers
+    # auto-send after SETTLE_MS; the clock syncs via its inline icon button.)
     src = _all_src()
-    # "Apply heat" is gone by design: the thermostat card auto-sends after the
-    # steppers settle (SETTLE_MS in HeatCard) instead of using a submit button.
     for marker in ("ValvesCard", "NamesCard", "IntelliChemCard", "LightsCard",
                    "CircuitsCard", "ChlorinatorCard", "SchedulesCard", "PumpsCard",
-                   "Set output", "Set clock to now", "SETTLE_MS", "Save schedule"):
+                   "Chlorinator output", "Sync controller clock to now",
+                   "SETTLE_MS", "Save schedule"):
         assert marker in src, marker
 
 

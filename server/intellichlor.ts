@@ -161,8 +161,13 @@ export class ChlorinatorReader {
  * drives the cell and may overwrite a directly-injected output on its next cycle,
  * so treat this as best-effort (see HANDOFF for the override caveat).
  */
+/** Clamp a requested generation level to the cell's valid 0-100% range. */
+export function clampPercent(percent: number): number {
+  return Math.max(0, Math.min(100, Math.trunc(percent)));
+}
+
 export function buildSetOutput(percent: number, dest: number = ICAddress.CHLORINATOR): Buffer {
-  const pct = Math.max(0, Math.min(100, Math.trunc(percent)));
+  const pct = clampPercent(percent);
   const body = Buffer.from([DLE, STX, dest, ICCommand.SET_OUTPUT, pct]);
   return Buffer.concat([body, Buffer.from([icChecksum(body)]), IC_END]);
 }

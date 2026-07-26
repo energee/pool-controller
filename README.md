@@ -285,13 +285,18 @@ at runtime** — only after editing `frontend/` (run `bun run build`). It polls
 freshness). There is no separate summary strip: the controls are the readings.
 A freeze-protect / service-mode banner appears only when active; below it, one
 flat titled section per control surface (no card chrome — inner tiles and
-inputs carry their own affordances) — equipment (Pool/Spa as tap tiles with a
-pending "confirming…" state; every
+inputs carry their own affordances) — equipment (a full-width two-row band of
+tap tiles, Pool/Spa first with a pending "confirming…" state; every
 circuit is the same tap tile), a thermostat-style heat section (−/+ steppers that
 auto-apply after a pause, segmented mode control — no Apply button), **salt /
-chlorinator**, schedules (readable rows; "+ Add schedule" picks a free
-controller slot automatically), pumps & clock, and
-**IntelliBrite lights**. The unverified reverse-engineering surfaces
+chlorinator** (salt ppm with a color-coded low/OK/high verdict against the
+IntelliChlor 3000–4500 ppm range; output % on the same −/+ auto-apply
+steppers as heat), schedules (readable rows; "+ Add schedule" picks a free
+controller slot automatically), and **pumps & clock** — a full-width band with
+pump stats, the controller clock (inline sync icon), and the experimental Pump
+Speed disclosure side by side; the **IntelliBrite lights** accordion sits
+beneath it (native `<details>`, closed by default). The
+unverified reverse-engineering surfaces
 (IntelliChem, valves, circuit-name config — shown only when their data exists —
 plus the raw/undecoded frames) are collapsed behind a **Diagnostics**
 disclosure. Controls are editable inline; schedule writes — and the light /

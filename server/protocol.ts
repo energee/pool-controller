@@ -104,12 +104,11 @@ export function parseFrame(frame: Buffer): Packet {
   if (a5 < 0) throw new Error("no 0xA5 start byte in frame");
   const rest = frame.subarray(a5);
   if (rest.length < MIN_BODY) throw new Error("frame too short for an A5 packet");
-  const [, sub, dst, src, cfi, length] = rest as unknown as number[];
-  const end = HEADER_LEN + length!;
+  const end = HEADER_LEN + rest[5]!;
   if (rest.length < end + 2) throw new Error("frame shorter than declared data length + checksum");
   const body = rest.subarray(0, end);
   const got = (rest[end]! << 8) | rest[end + 1]!;
   const want = checksum(body);
   if (got !== want) throw new ChecksumError(`checksum mismatch: frame=${got} computed=${want}`);
-  return new Packet(sub!, dst!, src!, cfi!, Buffer.from(rest.subarray(HEADER_LEN, end)));
+  return new Packet(rest[1]!, rest[2]!, rest[3]!, rest[4]!, Buffer.from(rest.subarray(HEADER_LEN, end)));
 }

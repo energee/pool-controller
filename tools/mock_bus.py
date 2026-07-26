@@ -24,10 +24,13 @@ from datetime import datetime, timedelta
 
 from easytouch import constants as C
 from easytouch.intellichlor import (
+    IC_END,
+    IC_START,
     ChlorinatorReader,
     ICAddress,
     ICCommand,
     build_set_output,
+    ic_checksum,
 )
 from easytouch.protocol import Packet
 from easytouch.reader import PacketReader
@@ -120,8 +123,8 @@ def version_pkt() -> Packet:
 
 def chlor_status_frame() -> bytes:
     """IntelliChlor salt status: ``10 02 00 12 <salt> <flags> <chk> 10 03``."""
-    body = bytes([0x10, 0x02, ICAddress.CONTROLLER, ICCommand.STATUS, STATE["salt"], 0x80])
-    return body + bytes([sum(body) & 0xFF]) + bytes([0x10, 0x03])
+    body = IC_START + bytes([ICAddress.CONTROLLER, ICCommand.STATUS, STATE["salt"], 0x80])
+    return body + bytes([ic_checksum(body)]) + IC_END
 
 
 def handle_packet(pkt: Packet) -> list[Packet]:

@@ -3,34 +3,14 @@
 import { describe, expect, test } from "bun:test";
 
 import { PoolApi } from "./api.js";
-import type { Link } from "./bus.js";
 import { BusMonitor } from "./monitor.js";
-
-const STATUS_FRAME = Buffer.from(
-  "00ffa5270f10021d0b0120000000000000200c000004535320005200000005000097a6030d03d0",
-  "hex"
-);
-
-class StubLink implements Link {
-  writes: Buffer[] = [];
-  constructor(private reads: Buffer[] = []) {}
-  take(): Buffer {
-    return this.reads.shift() ?? Buffer.alloc(0);
-  }
-  write(data: Buffer): void {
-    this.writes.push(Buffer.from(data));
-  }
-  close(): void {}
-  failure(): null {
-    return null;
-  }
-}
+import { STATUS_FRAME, StubLink } from "./testing.js";
 
 /** An API over a monitor primed with one real status frame. Short confirm window
  *  so the "not confirmed" paths don't stall the suite. */
 function api(): PoolApi {
   const mon = new BusMonitor("stub://");
-  mon.bus.attach(new StubLink([STATUS_FRAME]));
+  mon.bus.attach(new StubLink(STATUS_FRAME));
   mon.schedReqGap = 0;
   mon.pollOnce();
   return new PoolApi(mon, 150);

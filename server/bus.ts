@@ -17,11 +17,10 @@
 //     what keeps the Pi install free of node-gyp / prebuilt ARM binaries.
 
 import { execFileSync } from "node:child_process";
-import { createReadStream, createWriteStream, type ReadStream, type WriteStream } from "node:fs";
+import { createReadStream, createWriteStream } from "node:fs";
 import { Socket } from "node:net";
 
 import * as C from "./constants.js";
-import { encodeDays } from "./decode.js";
 import { Packet } from "./protocol.js";
 import { PacketReader } from "./reader.js";
 
@@ -143,25 +142,22 @@ function openSocket(url: string): BufferedLink {
 
 function openDevice(path: string, baud: number): BufferedLink {
   // Configure the line the way pyserial would (9600 8N1, no echo, raw), then treat
-  // the device as an ordinary character-device file. `-F` is GNU stty (Linux);
-  // macOS/BSD spells it `-f`, so try `-F` and fall back — dev machines are BSD.
-  for (const flag of ["-F", "-f"]) {
-    try {
-      execFileSync("stty", [flag, path, String(baud), "cs8", "-cstopb", "-parenb", "raw", "-echo"], {
-        stdio: "ignore",
-      });
-      break;
-    } catch (exc) {
-      if (flag === "-f") throw new Error(`stty failed for ${path}: ${(exc as Error).message}`);
-    }
+  // the device as an ordinary character-device file. `-F` is GNU stty (Linux, the
+  // Pi); macOS/BSD spells it `-f` — the flag is fixed per platform, so pick it
+  // once instead of paying a failing spawn on every open.
+  const flag = process.platform === "linux" ? "-F" : "-f";
+  try {
+    execFileSync("stty", [flag, path, String(baud), "cs8", "-cstopb", "-parenb", "raw", "-echo"], {
+      stdio: "ignore",
+    });
+  } catch (exc) {
+    throw new Error(`stty failed for ${path}: ${(exc as Error).message}`);
   }
-  let reader: ReadStream | undefined;
-  let writer: WriteStream | undefined;
-  reader = createReadStream(path);
-  writer = createWriteStream(path);
+  const reader = createReadStream(path);
+  const writer = createWriteStream(path);
   const link = new BufferedLink(writer, () => {
-    reader?.destroy();
-    writer?.destroy();
+    reader.destroy();
+    writer.destroy();
   });
   reader.on("data", (c) => link.onData(Buffer.from(c)));
   reader.on("error", link.onError);
@@ -344,5 +340,3 @@ export class Bus {
     return this.pumpCommand(pump, 1, 0x02, 0xc4, (rpm >> 8) & 0xff, rpm & 0xff);
   }
 }
-
-export { encodeDays };

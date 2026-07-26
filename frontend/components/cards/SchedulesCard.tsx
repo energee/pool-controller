@@ -1,14 +1,17 @@
 // Schedules card. Active schedules read as sentences ("pool · 8:00 AM–5:00 PM ·
 // Every day"); tapping one opens the editor on it, "+ Add schedule" opens it on
-// the lowest free slot. Controller slot ids stay internal — nobody thinks in
-// slots (they remain visible under Diagnostics → Raw). The editor POSTs
-// /schedule {id, circuit, start, end, days}; circuit is a dropdown, times are
-// native pickers, days are toggle chips. Editor state is local so the 3s poll
-// (which only refreshes the row list) never clobbers an in-progress edit.
+// the lowest free slot. The editor rides a native popover (HTML popover API):
+// top layer, centered, light-dismiss + Esc for free, and its open state lives
+// in the DOM so the 3s re-render never touches it. Controller slot ids stay
+// internal — nobody thinks in slots (they remain visible under Diagnostics →
+// Raw). The editor POSTs /schedule {id, circuit, start, end, days}; circuit is
+// a dropdown, times are native pickers, days are toggle chips. Editor state is
+// local so the 3s poll (which only refreshes the row list) never clobbers an
+// in-progress edit.
 import * as React from "react";
 
 import { postJSON } from "../../lib/api";
-import { CIRCUITS, DAYS } from "../../lib/constants";
+import { CIRCUITS, CIRCUIT_NUMBERS, DAYS } from "../../lib/constants";
 import { daysToSet, setToDays } from "../../lib/days";
 import { time12 } from "../../lib/format";
 import { cn } from "../../lib/utils";
@@ -26,6 +29,7 @@ import {
 } from "../ui/select";
 
 const SCHED_SLOTS = 12; // the controller exposes schedule slots 1..12
+const POOL = String(CIRCUIT_NUMBERS.pool); // default editor circuit
 
 const circuitName = (num: number) =>
   CIRCUITS.find(([n]) => n === num)?.[1] ?? "circuit " + num;
@@ -43,9 +47,14 @@ export function SchedulesCard({
     .map((id) => map[id]);
   const active = all.filter((x) => x.active);
 
-  // null = editor closed; a slot id = editing/creating that slot.
+  // null = editor closed; a slot id = editing/creating that slot. The popover
+  // element itself opens/closes via popoverTarget; editId tracks it through
+  // onToggle so the row highlight clears on light-dismiss too.
   const [editId, setEditId] = React.useState<string | null>(null);
-  const [circuit, setCircuit] = React.useState("6"); // default: pool
+  // The popover element — also the portal container for the circuit dropdown
+  // (a body-level Radix portal would paint under the top layer).
+  const [pop, setPop] = React.useState<HTMLDivElement | null>(null);
+  const [circuit, setCircuit] = React.useState(POOL);
   const [start, setStart] = React.useState("08:00");
   const [end, setEnd] = React.useState("17:00");
   const [daySet, setDaySet] = React.useState<Set<string>>(
@@ -55,7 +64,7 @@ export function SchedulesCard({
   // Load an existing slot into the editor.
   const load = (x: Schedule) => {
     setEditId(String(x.id));
-    setCircuit(String(x.circuit ?? 6));
+    setCircuit(x.circuit != null ? String(x.circuit) : POOL);
     setStart(x.start || "08:00");
     setEnd(x.end || "17:00");
     setDaySet(daysToSet(x.days));
@@ -66,7 +75,7 @@ export function SchedulesCard({
     let free = 1;
     while (free < SCHED_SLOTS && map[String(free)]?.active) free++;
     setEditId(String(free));
-    setCircuit("6");
+    setCircuit(POOL);
     setStart("08:00");
     setEnd("17:00");
     setDaySet(new Set(DAYS.map(([t]) => t)));
@@ -88,7 +97,7 @@ export function SchedulesCard({
       days: setToDays(daySet),
     });
     await refresh();
-    setEditId(null); // sentence list is the resting state
+    pop?.hidePopover(); // onToggle clears editId; on error the editor stays open
   };
 
   const editing = editId != null && map[editId]?.active;
@@ -107,6 +116,7 @@ export function SchedulesCard({
         {active.map((x) => (
           <button
             key={x.id}
+            popoverTarget="sched-editor"
             onClick={() => load(x)}
             className={cn(
               "flex w-full items-center justify-between gap-2.5 rounded-md px-2.5 py-2 text-left text-[13px] transition-colors hover:bg-accent",
@@ -132,33 +142,45 @@ export function SchedulesCard({
     <DashCard title="Schedules">
       {list}
 
-      {editId == null ? (
-        <Button
-          variant="outline"
-          size="sm"
-          className="mt-2 w-full"
-          disabled={!haveFreeSlot}
-          onClick={newSlot}
-        >
-          {haveFreeSlot ? "+ Add schedule" : "all 12 schedules in use"}
-        </Button>
-      ) : (
-        <>
-          <div className="mt-2 flex items-center justify-between">
-            <Label>{editing ? "Edit schedule" : "New schedule"}</Label>
-            <Button variant="ghost" size="sm" onClick={() => setEditId(null)}>
-              Cancel
-            </Button>
-          </div>
+      <Button
+        variant="outline"
+        size="sm"
+        className="mt-2 w-full"
+        disabled={!haveFreeSlot}
+        popoverTarget="sched-editor"
+        onClick={newSlot}
+      >
+        {haveFreeSlot ? "+ Add schedule" : "all 12 schedules in use"}
+      </Button>
 
-          <Grid2 className="mt-2">
-            <div className="space-y-1.5">
+      <div
+        ref={setPop}
+        id="sched-editor"
+        popover="auto"
+        onToggle={(e) => e.newState === "closed" && setEditId(null)}
+        className="m-auto w-[340px] max-w-[calc(100vw-2rem)] rounded-lg border border-border bg-popover p-4 text-foreground shadow-xl backdrop:bg-black/50"
+      >
+        <div className="flex items-center justify-between">
+          <Label>{editing ? "Edit schedule" : "New schedule"}</Label>
+          <Button
+            variant="ghost"
+            size="sm"
+            popoverTarget="sched-editor"
+            popoverTargetAction="hide"
+          >
+            Cancel
+          </Button>
+        </div>
+
+        <Grid2 className="mt-2">
+            {/* Full-width row; Start/End pair up on the next one. */}
+            <div className="space-y-1.5 col-span-2">
               <Label>Circuit</Label>
               <Select value={circuit} onValueChange={setCircuit}>
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent container={pop}>
                   {CIRCUITS.map(([num, name]) => (
                     <SelectItem key={num} value={String(num)}>
                       {name}
@@ -167,7 +189,6 @@ export function SchedulesCard({
                 </SelectContent>
               </Select>
             </div>
-            <div />
             <div className="space-y-1.5">
               <Label htmlFor="sch_start">Start</Label>
               <Input
@@ -215,8 +236,7 @@ export function SchedulesCard({
           <Button className="mt-2.5" disabled={daySet.size === 0} onClick={save}>
             Save schedule
           </Button>
-        </>
-      )}
+      </div>
     </DashCard>
   );
 }

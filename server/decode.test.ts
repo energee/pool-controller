@@ -13,12 +13,8 @@ import {
   mergeHeatMode,
 } from "./decode.js";
 import { Packet, parseFrame } from "./protocol.js";
+import { STATUS_FRAME as REAL_STATUS } from "./testing.js";
 
-// Real controller-status frame (CFI 2) captured from the bus.
-const REAL_STATUS = Buffer.from(
-  "00ffa5270f10021d0b0120000000000000200c000004535320005200000005000097a6030d03d0",
-  "hex"
-);
 // Real date/time frame (CFI 5): hour=11 min=05 dow=01 day=14 month=06 year=26.
 const REAL_DATETIME = new Packet(
   0x27, 0x0f, 0x10, 5,

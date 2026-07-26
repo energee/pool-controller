@@ -5,13 +5,9 @@ import { describe, expect, test } from "bun:test";
 
 import { ChecksumError, Packet, checksum, parseFrame } from "./protocol.js";
 import { PacketReader } from "./reader.js";
+// The shared frame includes the 00 FF preamble and trailing 2-byte checksum (03d0).
+import { STATUS_FRAME as REAL_STATUS } from "./testing.js";
 
-// A real controller-status (CFI 2) frame captured from the bus, including the
-// 00 FF preamble and the trailing 2-byte checksum (03d0).
-const REAL_STATUS = Buffer.from(
-  "00ffa5270f10021d0b0120000000000000200c000004535320005200000005000097a6030d03d0",
-  "hex"
-);
 
 describe("protocol", () => {
   test("checksum matches the trailing bytes of a real frame", () => {

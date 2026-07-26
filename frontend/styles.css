@@ -31,6 +31,10 @@
 
   --accent: #16181c;
   --accent-foreground: #e6e7ea;
+  /* Hover/pressed steps above --accent, shared by Button "outline" and any
+     selected-state that should match its pressed look. */
+  --accent-hover: #1c1f24;
+  --accent-active: #22252b;
 
   --destructive: #e5534b;
   --destructive-foreground: #ffffff;
@@ -93,12 +97,4 @@
     -webkit-font-smoothing: antialiased;
     font-variant-numeric: tabular-nums;
   }
-}
-
-/* The circuit on/off toggle keeps the legacy .switch hook so existing styling
-   tests and any external references stay meaningful (Radix Switch is used in
-   the React tree; this class is applied to its wrapper). */
-.switch {
-  display: inline-flex;
-  align-items: center;
 }

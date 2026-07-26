@@ -1,4 +1,5 @@
-// shadcn/ui Select (new-york) — Radix Select primitive, used for heat modes.
+// shadcn/ui Select (new-york) — Radix Select primitive, used for the schedule
+// editor's circuit picker.
 import * as React from "react";
 import * as SelectPrimitive from "@radix-ui/react-select";
 import { Check, ChevronDown, ChevronUp } from "lucide-react";
@@ -66,9 +67,14 @@ SelectScrollDownButton.displayName =
 
 const SelectContent = React.forwardRef<
   React.ElementRef<typeof SelectPrimitive.Content>,
-  React.ComponentPropsWithoutRef<typeof SelectPrimitive.Content>
->(({ className, children, position = "popper", ...props }, ref) => (
-  <SelectPrimitive.Portal>
+  React.ComponentPropsWithoutRef<typeof SelectPrimitive.Content> & {
+    /** Portal target; defaults to <body>. Pass the popover element when the
+     *  select lives inside a native popover — a body-level portal would paint
+     *  under the top layer. */
+    container?: HTMLElement | null;
+  }
+>(({ className, children, position = "popper", container, ...props }, ref) => (
+  <SelectPrimitive.Portal container={container ?? undefined}>
     <SelectPrimitive.Content
       ref={ref}
       className={cn(

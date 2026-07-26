@@ -3,36 +3,10 @@
 // StubSerial gave the Python suite — so no timers or real bus are involved.
 import { describe, expect, test } from "bun:test";
 
-import type { Link } from "./bus.js";
 import { BusMonitor } from "./monitor.js";
 import { Packet } from "./protocol.js";
+import { STATUS_FRAME, StubLink } from "./testing.js";
 
-/** In-memory stand-in for a bus connection: scripted reads, captured writes. */
-class StubLink implements Link {
-  writes: Buffer[] = [];
-  private reads: Buffer[];
-
-  constructor(...chunks: Buffer[]) {
-    this.reads = chunks;
-  }
-
-  take(): Buffer {
-    return this.reads.shift() ?? Buffer.alloc(0);
-  }
-  write(data: Buffer): void {
-    this.writes.push(Buffer.from(data));
-  }
-  close(): void {}
-  failure(): null {
-    return null;
-  }
-}
-
-// Real controller-status frame (CFI 2) captured from the bus, sub 0x27.
-const STATUS_FRAME = Buffer.from(
-  "00ffa5270f10021d0b0120000000000000200c000004535320005200000005000097a6030d03d0",
-  "hex"
-);
 const HEAT_FRAME = new Packet(
   0x27, 0x0f, 0x10, 8,
   Buffer.from([83, 83, 82, 85, 102, 5, 0, 0, 0, 100])

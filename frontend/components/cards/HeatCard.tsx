@@ -6,18 +6,17 @@
 // in-flight adjustment and the 3s poll never clobbers one; postJSON surfaces
 // the controller's confirmed/accepted verdict as a toast.
 import * as React from "react";
-import { Minus, Plus } from "lucide-react";
+import { MoveRight } from "lucide-react";
 
 import { postJSON } from "../../lib/api";
-import { MODES } from "../../lib/constants";
+import { MODES, SETTLE_MS } from "../../lib/constants";
 import type { Heat } from "../../types";
 import { cn } from "../../lib/utils";
-import { DashCard, Muted } from "../primitives";
+import { DashCard, Muted, STAT_LABEL, Stepper } from "../primitives";
 import { Button } from "../ui/button";
 
 const SETPOINT_MIN = 40;
 const SETPOINT_MAX = 104;
-const SETTLE_MS = 1200; // send this long after the last stepper tap
 
 export function HeatCard({
   heat,
@@ -54,11 +53,6 @@ function Thermostat({
   const [spaSp, setSpaSp] = React.useState(heat.spa_setpoint ?? 0);
   const [dirty, setDirty] = React.useState(false);
   const [sending, setSending] = React.useState(false);
-  const timer = React.useRef<ReturnType<typeof setTimeout> | null>(null);
-  // The debounce callback reads targets from a ref so it always sends the
-  // latest taps, not the values captured when the timer was armed.
-  const latest = React.useRef({ poolSp, spaSp });
-  latest.current = { poolSp, spaSp };
 
   // Re-seed from the controller whenever we're not mid-adjustment.
   React.useEffect(() => {
@@ -71,36 +65,34 @@ function Thermostat({
   const send = React.useCallback(
     async (fields: Record<string, number>) => {
       setSending(true);
+      setDirty(false); // before the await, so a tap mid-send re-dirties and re-arms
       try {
         await postJSON("/heat", fields);
         await refresh();
       } finally {
         setSending(false);
-        setDirty(false);
       }
     },
     [refresh]
   );
 
+  // Debounced auto-send: every tap re-runs this effect (the setpoint changed),
+  // which re-arms the timer — so it fires SETTLE_MS after the *last* tap with
+  // the latest values, and unmount cleanup comes for free.
+  React.useEffect(() => {
+    if (!dirty) return;
+    const t = setTimeout(
+      () => void send({ pool_setpoint: poolSp, spa_setpoint: spaSp }),
+      SETTLE_MS
+    );
+    return () => clearTimeout(t);
+  }, [dirty, poolSp, spaSp, send]);
+
   const nudge = (which: "pool" | "spa", delta: number) => {
     const set = which === "pool" ? setPoolSp : setSpaSp;
     set((v) => Math.min(SETPOINT_MAX, Math.max(SETPOINT_MIN, v + delta)));
     setDirty(true);
-    if (timer.current) clearTimeout(timer.current);
-    timer.current = setTimeout(() => {
-      void send({
-        pool_setpoint: latest.current.poolSp,
-        spa_setpoint: latest.current.spaSp,
-      });
-    }, SETTLE_MS);
   };
-
-  React.useEffect(
-    () => () => {
-      if (timer.current) clearTimeout(timer.current);
-    },
-    []
-  );
 
   // Mode taps send immediately — they're discrete choices, not a dial.
   const setMode = (which: "pool" | "spa", mode: number) =>
@@ -127,27 +119,15 @@ function Thermostat({
           </button>
         ))}
       </div>
-      {tab === "pool" ? (
-        <BodyRow
-          label="Pool"
-          current={heat.pool_temp}
-          target={poolSp}
-          mode={poolMode}
-          pending={dirty || sending}
-          onNudge={(d) => nudge("pool", d)}
-          onMode={(m) => setMode("pool", m)}
-        />
-      ) : (
-        <BodyRow
-          label="Spa"
-          current={heat.spa_temp}
-          target={spaSp}
-          mode={spaMode}
-          pending={dirty || sending}
-          onNudge={(d) => nudge("spa", d)}
-          onMode={(m) => setMode("spa", m)}
-        />
-      )}
+      <BodyRow
+        label={tab === "pool" ? "Pool" : "Spa"}
+        current={tab === "pool" ? heat.pool_temp : heat.spa_temp}
+        target={tab === "pool" ? poolSp : spaSp}
+        mode={tab === "pool" ? poolMode : spaMode}
+        pending={dirty || sending}
+        onNudge={(d) => nudge(tab, d)}
+        onMode={(m) => setMode(tab, m)}
+      />
       {/* Air lives here since the summary bar is gone; it informs the heat call. */}
       {heat.air_temp != null ? (
         <Muted className="mt-2">Air {heat.air_temp}°</Muted>
@@ -164,7 +144,6 @@ function BodyRow({
   pending,
   onNudge,
   onMode,
-  className,
 }: {
   label: string;
   current?: number | null;
@@ -173,45 +152,34 @@ function BodyRow({
   pending: boolean;
   onNudge: (delta: number) => void;
   onMode: (mode: number) => void;
-  className?: string;
 }) {
   return (
-    <div className={className}>
-      <div className="flex items-center justify-between gap-2">
-        <div>
-          <div className="text-[11px] text-muted-foreground tracking-[0.04em] uppercase">
-            {label}
-          </div>
-          <div className="text-[22px] font-medium tracking-tight">
-            {current ?? "–"}°
-            <span className="text-muted-foreground text-sm font-normal">
-              {" "}
-              →{" "}
+    <div>
+      {/* "now 83° → set 85°": micro-labels give the pair semantics, the lucide
+          arrow replaces the fuzzy text glyph (optically centered on the num line). */}
+      <Stepper
+        label={label}
+        aria={label + " setpoint"}
+        value={
+          <span className="inline-flex items-baseline gap-2.5">
+            <span className="inline-flex items-baseline gap-1.5">
+              <span className={cn(STAT_LABEL, "font-normal")}>now</span>
+              {current ?? "–"}°
             </span>
-            <span className={cn(pending && "text-destructive animate-pulse")}>
-              {target}°
+            <MoveRight
+              aria-hidden
+              className="h-4 w-4 self-center text-muted-foreground"
+            />
+            <span className="inline-flex items-baseline gap-1.5">
+              <span className={cn(STAT_LABEL, "font-normal")}>set</span>
+              <span className={cn(pending && "text-destructive animate-pulse")}>
+                {target}°
+              </span>
             </span>
-          </div>
-        </div>
-        <div className="flex items-center gap-1.5">
-          <Button
-            variant="outline"
-            className="h-9 w-11 px-0"
-            aria-label={label + " setpoint down"}
-            onClick={() => onNudge(-1)}
-          >
-            <Minus />
-          </Button>
-          <Button
-            variant="outline"
-            className="h-9 w-11 px-0"
-            aria-label={label + " setpoint up"}
-            onClick={() => onNudge(+1)}
-          >
-            <Plus />
-          </Button>
-        </div>
-      </div>
+          </span>
+        }
+        onNudge={onNudge}
+      />
       {/* Segmented mode control: the selected segment doubles as the read-out.
           Heat is red — a selected heating mode fills warm; a selected "Off" stays
           neutral so red always means "making heat". */}
@@ -225,7 +193,7 @@ function BodyRow({
               "px-0 text-xs",
               v === mode &&
                 (v === 0
-                  ? "bg-[#22252b] text-foreground"
+                  ? "bg-[var(--accent-active)] text-foreground"
                   : "bg-destructive text-destructive-foreground hover:bg-destructive/90 active:bg-destructive/80")
             )}
             onClick={() => v !== mode && onMode(v)}

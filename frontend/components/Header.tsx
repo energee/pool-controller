@@ -8,35 +8,16 @@
 // when the backend is up but the bus is down, and "unreachable" when the poll fails.
 import { cn } from "../lib/utils";
 
-/** How the Pentair mark is rendered. Its fills are hardcoded navy (#0c3471) and
- *  green (#64a70b), and this dashboard has a single dark theme (`--background:
- *  #08090a`, no `.dark` toggle), so navy-on-near-black needs a treatment:
- *  - "invert" — knock it out to solid white: legible, but loses the green.
- *  - "brand"  — leave the original colors alone (near-invisible here).
- *  - "chip"   — keep brand color on a white rounded plate behind the mark.
- *  These are unconditional, not `dark:`-prefixed: that variant is defined as
- *  `&:is(.dark *)` and nothing in the tree carries the class, so it never fires. */
-export type LogoTreatment = "invert" | "brand" | "chip";
-
-const LOGO_CLASS: Record<LogoTreatment, string> = {
-  invert: "brightness-0 invert",
-  brand: "",
-  chip: "bg-white rounded px-1.5 py-1 box-content",
-};
-
 export function Header({
   reachable,
   busConnected,
   age,
   error,
-  logoTreatment = "invert",
 }: {
   reachable: boolean;
   busConnected: boolean;
   age: number | null;
   error: string | null;
-  /** Rendering treatment for the Pentair mark (default: "invert"). */
-  logoTreatment?: LogoTreatment;
 }) {
   // Green only when the bus is connected AND the snapshot is fresh (<30s).
   const live = reachable && busConnected && (age == null || age < 30);
@@ -48,11 +29,13 @@ export function Header({
       : "disconnected" + (error ? ": " + error : "");
 
   return (
-    <header className="sticky top-0 z-10 flex items-center gap-3 px-5 h-12 bg-background/70 backdrop-blur">
+    <header className="sticky top-0 z-10 flex flex-col items-center gap-1.5 px-5 py-3 bg-background/70 backdrop-blur">
+      {/* The mark's fills are hardcoded navy/green — near-invisible on this dark
+          theme — so knock it out to solid white. */}
       <img
         src="/static/pentair.svg"
         alt="Pentair"
-        className={cn("h-5 w-auto shrink-0", LOGO_CLASS[logoTreatment])}
+        className="h-5 w-auto shrink-0 brightness-0 invert"
       />
       <span className="text-[15px] font-semibold tracking-tight leading-none">
         easytouch

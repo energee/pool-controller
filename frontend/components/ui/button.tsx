@@ -17,7 +17,7 @@ const buttonVariants = cva(
         // sheen + hover lift + pressed state), not a bordered ghost — every
         // secondary action in the app picks this up without touching call sites.
         outline:
-          "bg-accent text-foreground shadow-[inset_0_1px_0_rgba(255,255,255,0.05)] hover:bg-[#1c1f24] active:bg-[#22252b]",
+          "bg-accent text-foreground shadow-[inset_0_1px_0_rgba(255,255,255,0.05)] hover:bg-[var(--accent-hover)] active:bg-[var(--accent-active)]",
         secondary:
           "bg-secondary text-secondary-foreground hover:bg-secondary/80",
         ghost: "hover:bg-accent hover:text-accent-foreground",

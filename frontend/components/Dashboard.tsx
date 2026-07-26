@@ -9,6 +9,7 @@
 // disclosure so a pool owner sees ~5 cards, not 10.
 import { useDashboard } from "../hooks/useDashboard";
 import { Header } from "./Header";
+import { Disclosure } from "./primitives";
 import { ChlorinatorCard } from "./cards/ChlorinatorCard";
 import { CircuitsCard } from "./cards/CircuitsCard";
 import { HeatCard } from "./cards/HeatCard";
@@ -19,6 +20,8 @@ import { PumpsCard } from "./cards/PumpsCard";
 import { RawCard } from "./cards/RawCard";
 import { SchedulesCard } from "./cards/SchedulesCard";
 import { ValvesCard } from "./cards/ValvesCard";
+
+const GRID = "grid gap-x-6 gap-y-5 grid-cols-[repeat(auto-fill,minmax(300px,1fr))]";
 
 export function Dashboard() {
   const { state, connected, error, age, refresh } = useDashboard();
@@ -31,7 +34,6 @@ export function Dashboard() {
         busConnected={state?.connected ?? false}
         age={age}
         error={error}
-        logoTreatment="invert" // "invert" | "brand" | "chip" — see Header.tsx
       />
       <div className="max-w-[1080px] mx-auto p-5">
         {s.status?.freeze || s.status?.service ? (
@@ -44,33 +46,28 @@ export function Dashboard() {
               .join(" · ")}
           </div>
         ) : null}
-        <main className="grid gap-x-6 gap-y-5 grid-cols-[repeat(auto-fill,minmax(300px,1fr))]">
+        <main className={GRID}>
           <CircuitsCard status={s.status} refresh={refresh} />
           <HeatCard heat={s.heat} refresh={refresh} />
           <ChlorinatorCard chlor={s.chlorinator} refresh={refresh} />
           <SchedulesCard schedules={s.schedules} refresh={refresh} />
+          {/* Both full-width bands: Lights sits right under Pumps & clock. */}
           <PumpsCard
             pumps={s.pumps}
             datetime={s.datetime}
             version={s.version}
             refresh={refresh}
           />
-          <LightsCard refresh={refresh} />
-          {/* Native <details>: open/closed survives the 3s re-render because React
-              never touches the attribute after mount. */}
-          <details className="col-span-full">
-            <summary className="cursor-pointer py-1 text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground list-none hover:text-foreground">
-              Diagnostics ▸
-            </summary>
-            <div className="mt-3.5 grid gap-x-6 gap-y-5 grid-cols-[repeat(auto-fill,minmax(300px,1fr))]">
-              {s.intellichem ? <IntelliChemCard chem={s.intellichem} /> : null}
-              {s.valves ? <ValvesCard valves={s.valves} /> : null}
-              {s.names && Object.keys(s.names).length ? (
-                <NamesCard names={s.names} />
-              ) : null}
+          <LightsCard />
+          <Disclosure title="Diagnostics" className="col-span-full">
+            {/* Each card hides itself while its data is absent — no guards here. */}
+            <div className={`mt-3.5 ${GRID}`}>
+              <IntelliChemCard chem={s.intellichem} />
+              <ValvesCard valves={s.valves} />
+              <NamesCard names={s.names} />
               <RawCard raw={s.raw} />
             </div>
-          </details>
+          </Disclosure>
         </main>
       </div>
     </>

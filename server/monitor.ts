@@ -25,7 +25,7 @@ import {
   encodeDays,
   mergeHeatMode,
 } from "./decode.js";
-import { ChlorinatorReader, buildSetOutput, decodeIc } from "./intellichlor.js";
+import { ChlorinatorReader, buildSetOutput, clampPercent, decodeIc } from "./intellichlor.js";
 import type { Packet } from "./protocol.js";
 
 // EasyTouch stores 12 schedule slots (ids 1..12). The controller answers a
@@ -46,6 +46,11 @@ export const POLL_INTERVAL_MS = 300;
 export const STALE_AFTER_S = 30;
 
 type Command = Packet | Buffer;
+
+/** Minimum gap between reconnect attempts. Opening a serial device forks `stty`,
+ *  which blocks the event loop — without a floor, a missing/flapping device would
+ *  pay that cost on every 300ms tick, starving the HTTP server. */
+const RECONNECT_GAP_MS = 2000;
 
 export interface StateSnapshot {
   connected: boolean;
@@ -74,7 +79,12 @@ export interface StateSnapshot {
  */
 export class BusMonitor {
   readonly bus: Bus; // public so tests can attach a scripted Link
-  private state: Record<string, unknown> = {};
+  private status: ControllerStatus | null = null;
+  private heat: HeatStatus | null = null;
+  private datetime: unknown = null;
+  private version: unknown = null;
+  private valves: unknown = null;
+  private intellichem: unknown = null;
   private pumps: Record<number, unknown> = {};
   private schedules: Record<number, Schedule> = {};
   private names: Record<number, unknown> = {};
@@ -148,7 +158,12 @@ export class BusMonitor {
     if (!ok) this.reconnect();
   }
 
+  private nextReconnect = 0; // ms gate: don't spawn stty on every failed tick
+
   private reconnect(): void {
+    const now = performance.now();
+    if (now < this.nextReconnect) return;
+    this.nextReconnect = now + RECONNECT_GAP_MS;
     try {
       this.bus.close();
       this.bus.open();
@@ -230,12 +245,12 @@ export class BusMonitor {
   private ingest(pkt: Packet): void {
     const obj = decode(pkt);
     switch (obj.kind) {
-      case "status": this.state.status = obj.value; break;
-      case "heat": this.state.heat = obj.value; break;
-      case "datetime": this.state.datetime = obj.value; break;
-      case "version": this.state.version = obj.value; break;
-      case "valves": this.state.valves = obj.value; break;
-      case "intellichem": this.state.intellichem = obj.value; break;
+      case "status": this.status = obj.value; break;
+      case "heat": this.heat = obj.value; break;
+      case "datetime": this.datetime = obj.value; break;
+      case "version": this.version = obj.value; break;
+      case "valves": this.valves = obj.value; break;
+      case "intellichem": this.intellichem = obj.value; break;
       case "pump": this.pumps[obj.value.pump] = obj.value; break;
       case "schedule": this.schedules[obj.value.id] = obj.value; break;
       case "names": this.names[obj.value.circuit] = obj.value; break;
@@ -284,7 +299,7 @@ export class BusMonitor {
     if (now < this.nextRefresh) return;
     this.nextRefresh = now + this.refreshInterval;
     this.cmdQueue.push(this.bus.buildGetHeat());
-    if (!("version" in this.state)) this.cmdQueue.push(this.bus.buildGetVersion()); // static; ask until seen
+    if (this.version == null) this.cmdQueue.push(this.bus.buildGetVersion()); // static; ask until seen
     // Queue a full schedule re-scan. The controller answers only for the id in the
     // request (a single id-0 request never surfaces slots 1..N) and drops a burst of
     // requests, so slots are polled one at a time, paced, by serviceSchedScan. Delay
@@ -325,18 +340,27 @@ export class BusMonitor {
       error: this.error,
       last_packet_ts: this.lastPacketTs,
       age: this.lastPacketTs === null ? null : now - this.lastPacketTs,
-      status: (this.state.status as ControllerStatus) ?? null,
-      heat: (this.state.heat as HeatStatus) ?? null,
-      datetime: this.state.datetime ?? null,
-      version: this.state.version ?? null,
-      valves: this.state.valves ?? null,
-      intellichem: this.state.intellichem ?? null,
+      status: this.status,
+      heat: this.heat,
+      datetime: this.datetime,
+      version: this.version,
+      valves: this.valves,
+      intellichem: this.intellichem,
       names: { ...this.names },
       pumps: { ...this.pumps },
       schedules: { ...this.schedules },
       chlorinator: chlor,
       raw: { ...this.raw },
     };
+  }
+
+  /** Resolve once every queued command has been drained onto the bus (or after
+   *  `timeoutMs`). Lets callers wait on the fact instead of guessing a sleep. */
+  async flush(timeoutMs = 5000): Promise<void> {
+    const deadline = performance.now() + timeoutMs;
+    while (this.cmdQueue.length && performance.now() < deadline) {
+      await new Promise((r) => setTimeout(r, POLL_INTERVAL_MS));
+    }
   }
 
   /** Poll `getState()` until `predicate` holds; resolve with it, else null. */
@@ -357,7 +381,7 @@ export class BusMonitor {
 
   // --- commands (enqueued; the single bus owner sends them) --------------
   setCircuit(circuit: number, on: boolean): void {
-    this.cmdQueue.push(this.bus.buildSetCircuit(circuit, Boolean(on)));
+    this.cmdQueue.push(this.bus.buildSetCircuit(circuit, on));
   }
 
   /**
@@ -369,7 +393,7 @@ export class BusMonitor {
    * EasyTouch controller may override a direct injection (see HANDOFF).
    */
   setChlorinatorOutput(percent: number): number {
-    const pct = Math.max(0, Math.min(100, Math.trunc(percent)));
+    const pct = clampPercent(percent);
     this.cmdQueue.push(buildSetOutput(pct));
     this.chlor.output_percent = pct;
     return pct;
@@ -409,7 +433,7 @@ export class BusMonitor {
     poolMode?: number | null,
     spaMode?: number | null
   ): Record<string, number> {
-    const cur = this.state.heat as HeatStatus | undefined;
+    const cur = this.heat;
     if (!cur) throw new Error("no heat status cached yet; try again shortly");
     const psp = poolSetpoint ?? cur.pool_setpoint;
     const ssp = spaSetpoint ?? cur.spa_setpoint;
@@ -434,3 +458,24 @@ export class BusMonitor {
     this.schedRereadId = scheduleId; // ...the slot we just wrote
   }
 }
+
+/**
+ * Write-confirmation predicates for `waitFor`, shared by the HTTP API and the
+ * CLI so both judge "the controller applied it" by one rule per write type.
+ * `res` arguments are what the corresponding `set*` method returned.
+ */
+export const confirmed = {
+  circuit: (circuit: number, on: boolean) => (s: StateSnapshot): boolean =>
+    s.status?.circuits_on.includes(circuit) === on,
+  heat: (res: Record<string, number>) => (s: StateSnapshot): boolean =>
+    s.heat != null &&
+    s.heat.pool_setpoint === res.pool_setpoint &&
+    s.heat.spa_setpoint === res.spa_setpoint &&
+    s.heat.heat_mode_raw === res.heat_mode,
+  schedule: (sid: number) => (s: StateSnapshot): boolean => sid in s.schedules,
+  // The minute may have ticked between send and echo, so only date + hour match.
+  datetime: (res: Record<string, unknown>) => (s: StateSnapshot): boolean => {
+    const d = s.datetime as { hour: number; day: number; month: number } | null;
+    return d != null && d.hour === res.hour && d.day === res.day && d.month === res.month;
+  },
+};

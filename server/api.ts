@@ -36,7 +36,7 @@ import { dirname, extname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { resolveCircuit } from "./bus.js";
-import { BusMonitor, type StateSnapshot } from "./monitor.js";
+import { BusMonitor, type StateSnapshot, confirmed } from "./monitor.js";
 
 export const CONFIRM_TIMEOUT_MS = 6000;
 
@@ -57,17 +57,29 @@ class BadRequest extends Error {}
 /** Not ready yet (e.g. set-heat before heat is cached) — surfaces as HTTP 503. */
 class NotReady extends Error {}
 
+// Static assets cached by mtime: app.js is ~600KB and would otherwise be re-read
+// from the SD card on every dashboard load. Keyed on mtime (one cheap stat per
+// request) so a rebuilt bundle is picked up without restarting the server.
+const staticCache = new Map<string, { mtimeMs: number; body: Buffer }>();
+
 /**
  * Read a built asset under `static/`. Throws for a missing file or any path that
  * escapes the directory (defence-in-depth against traversal — callers also
  * allowlist).
  */
-export function readStatic(name: string): [Buffer, string] {
+export function readStatic(name: string): [Buffer, string, string] {
   const path = resolve(join(STATIC_DIR, name));
-  if (dirname(path) !== STATIC_DIR || !statSync(path, { throwIfNoEntry: false })?.isFile()) {
+  const stat = statSync(path, { throwIfNoEntry: false });
+  if (dirname(path) !== STATIC_DIR || !stat?.isFile()) {
     throw new Error(`not found: ${name}`);
   }
-  return [readFileSync(path), CONTENT_TYPES[extname(path)] ?? "application/octet-stream"];
+  let entry = staticCache.get(path);
+  if (entry?.mtimeMs !== stat.mtimeMs) {
+    entry = { mtimeMs: stat.mtimeMs, body: readFileSync(path) };
+    staticCache.set(path, entry);
+  }
+  const etag = `W/"${entry.mtimeMs}-${entry.body.length}"`;
+  return [entry.body, CONTENT_TYPES[extname(path)] ?? "application/octet-stream", etag];
 }
 
 // Subsets of getState() exposed as their own GET endpoints.
@@ -96,10 +108,12 @@ export const ENDPOINTS: Record<string, string> = {
   "POST /pump": "{pump, rpm} (EXPERIMENTAL, unverified)",
 };
 
-/** One request's reply: a status code plus a JSON body or a raw asset. */
+/** One request's reply: a status code plus a JSON body or a raw asset. Assets
+ *  carry an ETag so a reload revalidates with a 304 instead of re-shipping the
+ *  ~600KB bundle over the Pi's WiFi. */
 type Reply =
   | { code: number; json: unknown }
-  | { code: number; body: Buffer; contentType: string };
+  | { code: number; body: Buffer; contentType: string; etag?: string };
 
 const json = (code: number, obj: unknown): Reply => ({ code, json: obj });
 
@@ -109,16 +123,10 @@ function intArg(value: unknown, what: string): number {
   return n;
 }
 
-export function makeServer(
-  httpHost: string,
-  httpPort: number,
-  monitor: BusMonitor,
-  confirmTimeout: number = CONFIRM_TIMEOUT_MS
-): Server {
+/** An unbound HTTP server over `monitor` — the caller `listen()`s it. */
+export function makeServer(monitor: BusMonitor, confirmTimeout: number = CONFIRM_TIMEOUT_MS): Server {
   const api = new PoolApi(monitor, confirmTimeout);
-  const server = createServer((req, res) => void handle(api, req, res));
-  server.on("listening", () => void httpHost); // host is applied by listen() below
-  return server;
+  return createServer((req, res) => void handle(api, req, res));
 }
 
 async function handle(api: PoolApi, req: IncomingMessage, res: ServerResponse): Promise<void> {
@@ -141,10 +149,14 @@ async function handle(api: PoolApi, req: IncomingMessage, res: ServerResponse): 
       "Content-Length": String(body.length),
     });
     res.end(body);
+  } else if (reply.etag && req.headers["if-none-match"] === reply.etag) {
+    res.writeHead(304, { ETag: reply.etag });
+    res.end();
   } else {
     res.writeHead(reply.code, {
       "Content-Type": reply.contentType,
       "Content-Length": String(reply.body.length),
+      ...(reply.etag ? { ETag: reply.etag } : {}),
     });
     res.end(reply.body);
   }
@@ -177,14 +189,14 @@ export class PoolApi {
   // --- GET ---------------------------------------------------------------
   async routeGet(parts: string[]): Promise<Reply> {
     if (!parts.length) {
-      const [body, contentType] = readStatic("index.html"); // the human dashboard
-      return { code: 200, body, contentType };
+      const [body, contentType, etag] = readStatic("index.html"); // the human dashboard
+      return { code: 200, body, contentType, etag };
     }
     const head = parts[0]!;
     if (head === "static" && parts.length === 2) {
       try {
-        const [body, contentType] = readStatic(parts[1]!); // built JS/CSS bundle
-        return { code: 200, body, contentType };
+        const [body, contentType, etag] = readStatic(parts[1]!); // built JS/CSS bundle
+        return { code: 200, body, contentType, etag };
       } catch {
         return json(404, { error: "not found" });
       }
@@ -216,7 +228,7 @@ export class PoolApi {
     if (path === "heat") {
       const kwargs: Record<string, number> = {};
       for (const key of ["pool_setpoint", "spa_setpoint", "pool_mode", "spa_mode"]) {
-        if (body[key] != null) kwargs[key] = Number(body[key]);
+        if (body[key] != null) kwargs[key] = intArg(body[key], `${key} must be an integer`);
       }
       if (!Object.keys(kwargs).length)
         throw new BadRequest("body must include at least one heat field");
@@ -250,10 +262,7 @@ export class PoolApi {
     const flag = { on: true, "1": true, off: false, "0": false }[action.toLowerCase()];
     if (flag === undefined) throw new BadRequest("circuit action must be on/off");
     this.monitor.setCircuit(circuit, flag);
-    const st = await this.monitor.waitFor(
-      (s) => Boolean(s.status) && s.status!.circuits_on.includes(circuit) === flag,
-      this.confirmTimeout
-    );
+    const st = await this.monitor.waitFor(confirmed.circuit(circuit, flag), this.confirmTimeout);
     if (st === null) return json(202, { accepted: true, circuit, on: flag });
     return json(200, { confirmed: true, circuit, on: flag, status: st.status });
   }
@@ -267,14 +276,7 @@ export class PoolApi {
     } catch (exc) {
       throw new NotReady(String((exc as Error).message));
     }
-    const st = await this.monitor.waitFor(
-      (s) =>
-        Boolean(s.heat) &&
-        s.heat!.pool_setpoint === res.pool_setpoint &&
-        s.heat!.spa_setpoint === res.spa_setpoint &&
-        s.heat!.heat_mode_raw === res.heat_mode,
-      this.confirmTimeout
-    );
+    const st = await this.monitor.waitFor(confirmed.heat(res), this.confirmTimeout);
     if (st === null) return json(202, { accepted: true, requested: res });
     return json(200, { confirmed: true, heat: st.heat });
   }
@@ -295,7 +297,7 @@ export class PoolApi {
     } catch (exc) {
       throw new BadRequest(String((exc as Error).message)); // bad HH:MM or day token
     }
-    const st = await this.monitor.waitFor((s) => sid in s.schedules, this.confirmTimeout);
+    const st = await this.monitor.waitFor(confirmed.schedule(sid), this.confirmTimeout);
     if (st === null) return json(202, { accepted: true, id: sid });
     return json(200, { confirmed: true, schedule: st.schedules[sid] });
   }
@@ -314,11 +316,8 @@ export class PoolApi {
     }
     const res = this.monitor.setDatetime(when);
     // Confirm like the other writes: poll the cache for a Date/Time broadcast
-    // echoing the date+hour we sent (the minute may have ticked).
-    const st = await this.monitor.waitFor((s) => {
-      const d = s.datetime as { hour: number; day: number; month: number } | null;
-      return Boolean(d) && d!.hour === res.hour && d!.day === res.day && d!.month === res.month;
-    }, this.confirmTimeout);
+    // echoing the date+hour we sent.
+    const st = await this.monitor.waitFor(confirmed.datetime(res), this.confirmTimeout);
     if (st === null) return json(202, { accepted: true, requested: res });
     return json(200, { confirmed: true, datetime: st.datetime });
   }
@@ -363,7 +362,7 @@ export function serve(opts: {
   const monitor = new BusMonitor(
     opts.port, opts.baud, opts.address, opts.refreshInterval ?? 15_000
   ).start();
-  const server = makeServer(httpHost, httpPort, monitor);
+  const server = makeServer(monitor);
   server.listen(httpPort, httpHost, () => {
     console.log(`easytouch API on http://${httpHost}:${httpPort}  (bus: ${opts.port})`);
   });

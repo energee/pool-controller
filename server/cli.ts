@@ -23,8 +23,9 @@
 
 import { DEFAULT_BAUD, DEFAULT_PORT, resolveCircuit } from "./bus.js";
 import { serve } from "./api.js";
-import { BusMonitor, type StateSnapshot } from "./monitor.js";
+import { BusMonitor, SCHEDULE_SLOTS, type StateSnapshot, confirmed } from "./monitor.js";
 import { decode } from "./decode.js";
+import { parseFrame } from "./protocol.js";
 import { Address } from "./constants.js";
 
 interface Opts {
@@ -138,11 +139,12 @@ async function main(): Promise<number> {
           const ts = new Date().toTimeString().slice(0, 8);
           if (cmd === "raw") console.log(`[${ts}] ${hex}`);
           else {
-            const { PacketReader } = await import("./reader.js");
-            const [pkt] = new PacketReader().feed(
-              Buffer.concat([Buffer.from([0x00, 0xff]), Buffer.from(hex, "hex").subarray(2)])
-            );
-            console.log(`[${ts}] ${pkt ? String(decode(pkt).kind) + " " + String(pkt) : hex}`);
+            try {
+              const pkt = parseFrame(Buffer.from(hex, "hex"));
+              console.log(`[${ts}] ${String(decode(pkt).kind)} ${String(pkt)}`);
+            } catch {
+              console.log(`[${ts}] ${hex}`); // shouldn't happen: raw[] holds validated frames
+            }
           }
         }
         await sleep(300);
@@ -156,10 +158,7 @@ async function main(): Promise<number> {
     return withMonitor(opts, async (mon) => {
       await firstOf(mon, "status");
       mon.setCircuit(circuit, cmd === "on");
-      const st = await mon.waitFor(
-        (s) => (s.status?.circuits_on.includes(circuit) ?? false) === (cmd === "on"),
-        8000
-      );
+      const st = await mon.waitFor(confirmed.circuit(circuit, cmd === "on"), 8000);
       console.log(st ? `circuit ${circuit} is ${cmd}` : `circuit ${circuit} not confirmed`);
       if (st?.status) printStatus(st.status);
       return st ? 0 : 1;
@@ -181,7 +180,7 @@ async function main(): Promise<number> {
     return withMonitor(opts, async (mon) => {
       await firstOf(mon, "heat", 12_000);
       const res = mon.setHeat(num("pool"), num("spa"), num("pool-mode"), num("spa-mode"));
-      const st = await mon.waitFor((s) => s.heat?.pool_setpoint === res.pool_setpoint, 8000);
+      const st = await mon.waitFor(confirmed.heat(res), 8000);
       console.log(st ? `confirmed: ${JSON.stringify(st.heat)}` : `sent (unconfirmed): ${JSON.stringify(res)}`);
       return st ? 0 : 1;
     });
@@ -190,10 +189,14 @@ async function main(): Promise<number> {
   if (cmd === "schedules") {
     return withMonitor(opts, async (mon) => {
       await firstOf(mon, "status");
-      // Slots are polled one at a time, paced ~1s apart; a full scan needs ~13s.
-      await sleep(15_000);
+      // Slots are polled one at a time, paced schedReqGap apart; wait out a full
+      // scan plus a little margin for the replies.
+      await sleep((SCHEDULE_SLOTS + 3) * mon.schedReqGap);
       const scheds = Object.values(mon.getState().schedules).filter((s) => s.active);
-      if (!scheds.length) return console.log("no schedules programmed"), 0;
+      if (!scheds.length) {
+        console.log("no schedules programmed");
+        return 0;
+      }
       for (const s of scheds.sort((a, b) => a.id - b.id)) {
         console.log(`  ${s.id}: ${s.circuit_name.padEnd(8)} ${s.start}-${s.end}  ${s.days.join(",")}`);
       }
@@ -210,7 +213,7 @@ async function main(): Promise<number> {
         id, resolveCircuit(flags.circuit ?? ""), flags.start ?? "", flags.end ?? "",
         flags.days ?? "every"
       );
-      const st = await mon.waitFor((s) => s.schedules[id]?.circuit !== 0, 15_000);
+      const st = await mon.waitFor(confirmed.schedule(id), 15_000);
       console.log(st ? `confirmed: ${JSON.stringify(st.schedules[id])}` : "sent (unconfirmed)");
       return st ? 0 : 1;
     });
@@ -220,7 +223,7 @@ async function main(): Promise<number> {
     return withMonitor(opts, async (mon) => {
       await firstOf(mon, "status");
       const pct = mon.setChlorinatorOutput(Number(opts.flags.percent));
-      await sleep(1000); // let the poll loop drain the queue onto the bus
+      await mon.flush(); // the poll loop drains the queue onto the bus
       console.log(`sent: output ${pct}% (best-effort; the controller may override)`);
       return 0;
     });
@@ -230,10 +233,7 @@ async function main(): Promise<number> {
     return withMonitor(opts, async (mon) => {
       await firstOf(mon, "status");
       const res = mon.setDatetime(opts.flags.when ? new Date(opts.flags.when) : null);
-      const st = await mon.waitFor((s) => {
-        const d = s.datetime as { hour: number; day: number } | null;
-        return Boolean(d) && d!.hour === res.hour && d!.day === res.day;
-      }, 8000);
+      const st = await mon.waitFor(confirmed.datetime(res), 8000);
       console.log(st ? `confirmed: ${JSON.stringify(st.datetime)}` : `sent (unconfirmed): ${JSON.stringify(res)}`);
       return st ? 0 : 1;
     });
@@ -243,7 +243,7 @@ async function main(): Promise<number> {
     return withMonitor(opts, async (mon) => {
       await firstOf(mon, "status");
       const code = mon.setLight(opts.rest[0] ?? "");
-      await sleep(1000);
+      await mon.flush();
       console.log(`sent light command ${opts.rest[0]} (code ${code}) — no status to confirm against`);
       return 0;
     });
@@ -253,7 +253,7 @@ async function main(): Promise<number> {
     return withMonitor(opts, async (mon) => {
       await firstOf(mon, "status");
       const res = mon.setPumpSpeed(Number(opts.flags.pump ?? 1), Number(opts.flags.rpm));
-      await sleep(1000);
+      await mon.flush();
       console.log(`sent (EXPERIMENTAL, unverified): ${JSON.stringify(res)}`);
       return 0;
     });

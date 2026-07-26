@@ -7,13 +7,14 @@
 import * as React from "react";
 
 import { command } from "../../lib/api";
-import { CIRCUITS } from "../../lib/constants";
+import { CIRCUITS, CIRCUIT_NUMBERS } from "../../lib/constants";
+import { temp as fmtTemp } from "../../lib/format";
 import type { Status } from "../../types";
 import { cn } from "../../lib/utils";
 import { DashCard } from "../primitives";
 
-const SPA = 1;
-const POOL = 6;
+const SPA = CIRCUIT_NUMBERS.spa;
+const POOL = CIRCUIT_NUMBERS.pool;
 
 export function CircuitsCard({
   status,
@@ -25,10 +26,11 @@ export function CircuitsCard({
   const on = (status && status.circuits_on) || [];
   const [pending, setPending] = React.useState<number | null>(null);
 
-  const toggle = async (num: number, checked: boolean) => {
+  const toggle = async (num: number) => {
+    const next = !on.includes(num); // a toggle always requests the opposite state
     setPending(num);
     try {
-      await command("/circuit/" + num + "/" + (checked ? "on" : "off"));
+      await command("/circuit/" + num + "/" + (next ? "on" : "off"));
       await refresh();
     } finally {
       setPending(null);
@@ -36,9 +38,13 @@ export function CircuitsCard({
   };
 
   const unit = status?.unit || "F";
+  // Full-width band: two rows flowing column-by-column (Pool over Spa first),
+  // so the tall tile stack no longer sets the page grid's first-row height.
+  // Phones keep the old two-column stack — ten tiles across two rows would be
+  // unreadably narrow there.
   return (
-    <DashCard title="Equipment">
-      <div className="grid grid-cols-2 gap-1.5">
+    <DashCard title="Equipment" className="col-span-full">
+      <div className="grid grid-cols-2 gap-1.5 sm:grid-flow-col sm:grid-rows-2 sm:auto-cols-fr">
         <Tile
           label="Pool"
           temp={status?.pool_temp}
@@ -47,7 +53,7 @@ export function CircuitsCard({
           verb={on.includes(POOL) ? (status?.heater_on ? "Heating" : "Filtering") : "Off"}
           hot={Boolean(on.includes(POOL) && status?.heater_on)}
           pending={pending === POOL}
-          onToggle={() => toggle(POOL, !on.includes(POOL))}
+          onToggle={() => toggle(POOL)}
         />
         <Tile
           label="Spa"
@@ -56,7 +62,7 @@ export function CircuitsCard({
           on={on.includes(SPA)}
           verb={on.includes(SPA) ? "Running" : "Off"}
           pending={pending === SPA}
-          onToggle={() => toggle(SPA, !on.includes(SPA))}
+          onToggle={() => toggle(SPA)}
         />
         {/* Everything that isn't pool/spa: same tile, nothing extra to say. */}
         {CIRCUITS.filter(([num]) => num !== POOL && num !== SPA).map(
@@ -68,7 +74,7 @@ export function CircuitsCard({
               on={on.includes(num)}
               verb={on.includes(num) ? "On" : "Off"}
               pending={pending === num}
-              onToggle={() => toggle(num, !on.includes(num))}
+              onToggle={() => toggle(num)}
             />
           )
         )}
@@ -122,7 +128,7 @@ function Tile({
       <div className="flex items-baseline justify-between">
         <span className="text-[13px] font-medium">{label}</span>
         <span className="text-lg font-medium tracking-tight">
-          {temp != null ? temp + "°" + unit : ""}
+          {temp != null ? fmtTemp(temp, unit) : ""}
         </span>
       </div>
       <div
