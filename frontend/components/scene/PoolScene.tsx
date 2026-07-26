@@ -32,7 +32,9 @@ function CameraRig() {
     <OrbitControls
       makeDefault
       target={CAM_TARGET}
-      enablePan={false}
+      // right-drag (two-finger click on a trackpad) pans; drag rotates
+      enablePan
+      screenSpacePanning={false}
       minDistance={5}
       maxDistance={22}
       // stay above the deck and never quite top-down
