@@ -160,10 +160,47 @@ export function Equipment({ scene }: { scene: SceneState }) {
         ) : null}
       </group>
 
+      {/* Pentair Clean & Clear Plus cartridge filter: tall almond tank with a
+          domed lid, black band clamp at the seam, pressure gauge on top, and
+          two black inlet/outlet unions facing the pump (the pipes plug in). */}
       <group position={[4.6, 0, -2.2]} {...hover("filter")}>
-        <mesh position={[0, 0.45, 0]}>
-          <cylinderGeometry args={[0.42, 0.42, 0.9, 24]} />
-          <meshStandardMaterial color="#aab4be" />
+        <mesh position={[0, 0.07, 0]}>
+          <cylinderGeometry args={[0.16, 0.21, 0.14, 20]} />
+          <meshStandardMaterial color="#ded5bf" roughness={0.8} />
+        </mesh>
+        <mesh position={[0, 0.4, 0]}>
+          <cylinderGeometry args={[0.19, 0.19, 0.52, 24]} />
+          <meshStandardMaterial color="#e9e1cc" roughness={0.75} />
+        </mesh>
+        <mesh position={[0, 0.66, 0]} scale={[1, 0.75, 1]}>
+          <sphereGeometry args={[0.19, 24, 16]} />
+          <meshStandardMaterial color="#e9e1cc" roughness={0.75} />
+        </mesh>
+        <mesh position={[0, 0.55, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+          <torusGeometry args={[0.196, 0.028, 10, 28]} />
+          <meshStandardMaterial color="#24262a" roughness={0.6} />
+        </mesh>
+        {/* air-relief stem + pressure gauge */}
+        <mesh position={[0, 0.84, 0]}>
+          <cylinderGeometry args={[0.012, 0.012, 0.09, 8]} />
+          <meshStandardMaterial color="#24262a" roughness={0.6} />
+        </mesh>
+        <mesh position={[0, 0.92, 0]} rotation={[Math.PI / 2, 0, 0]}>
+          <cylinderGeometry args={[0.045, 0.045, 0.024, 16]} />
+          <meshStandardMaterial color="#24262a" roughness={0.6} />
+        </mesh>
+        <mesh position={[0, 0.92, 0.014]} rotation={[Math.PI / 2, 0, 0]}>
+          <cylinderGeometry args={[0.034, 0.034, 0.005, 16]} />
+          <meshStandardMaterial color="#eef0f0" roughness={0.4} />
+        </mesh>
+        {/* inlet (upper) and outlet (lower) unions, facing the pump */}
+        <mesh position={[-0.225, 0.32, 0]} rotation={[0, 0, Math.PI / 2]}>
+          <cylinderGeometry args={[0.05, 0.05, 0.13, 12]} />
+          <meshStandardMaterial color="#1e2023" roughness={0.55} />
+        </mesh>
+        <mesh position={[-0.225, 0.18, 0]} rotation={[0, 0, Math.PI / 2]}>
+          <cylinderGeometry args={[0.05, 0.05, 0.13, 12]} />
+          <meshStandardMaterial color="#1e2023" roughness={0.55} />
         </mesh>
         <Html center distanceFactor={14} position={[0, -0.16, 0]}>
           <div className={labelClass}>FILTER</div>
@@ -175,22 +212,51 @@ export function Equipment({ scene }: { scene: SceneState }) {
         ) : null}
       </group>
 
+      {/* Pentair MasterTemp 400: almond cube with a rounded lid, charcoal
+          front panel (glows warm while firing), side louvers, black exhaust
+          vent at the top corner, and foot pads. */}
       <group position={[5.7, 0, -2.2]} {...hover("heater")}>
-        <mesh position={[0, 0.35, 0]}>
-          <boxGeometry args={[1.0, 0.7, 0.8]} />
+        {[-0.18, 0.18].map((z) => (
+          <mesh key={z} position={[0, 0.03, z]}>
+            <boxGeometry args={[0.56, 0.06, 0.12]} />
+            <meshStandardMaterial color="#ded5bf" roughness={0.85} />
+          </mesh>
+        ))}
+        <mesh position={[0, 0.32, 0]}>
+          <boxGeometry args={[0.56, 0.52, 0.56]} />
+          <meshStandardMaterial color="#e9e1cc" roughness={0.75} />
+        </mesh>
+        <mesh position={[0, 0.61, 0]}>
+          <boxGeometry args={[0.52, 0.1, 0.52]} />
+          <meshStandardMaterial color="#e9e1cc" roughness={0.75} />
+        </mesh>
+        {/* charcoal front panel — the heaterMaterial emissive lives here */}
+        <mesh position={[0, 0.32, 0.285]}>
+          <boxGeometry args={[0.46, 0.44, 0.02]} />
           <meshStandardMaterial
             ref={heaterMaterial}
-            color="#596574"
+            color="#3c4046"
             emissive="#ff7a45"
             emissiveIntensity={0}
+            roughness={0.6}
           />
+        </mesh>
+        {/* louvered side vent (suggested) */}
+        <mesh position={[-0.285, 0.26, 0]}>
+          <boxGeometry args={[0.02, 0.3, 0.4]} />
+          <meshStandardMaterial color="#d8cfba" roughness={0.9} />
+        </mesh>
+        {/* black exhaust vent box at the top corner */}
+        <mesh position={[-0.32, 0.58, -0.12]}>
+          <boxGeometry args={[0.18, 0.18, 0.2]} />
+          <meshStandardMaterial color="#202226" roughness={0.6} />
         </mesh>
         {scene.heaterOn ? (
           <Sparkles
             count={8}
             size={1.4}
             scale={[0.5, 0.7, 0.5]}
-            position={[0, 1.0, 0]}
+            position={[-0.32, 0.82, -0.12]}
             color="#e8edf2"
             speed={0.35}
           />

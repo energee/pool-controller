@@ -73,16 +73,27 @@ function PipeRun({
 
 // Waypoints (y=0.1 ground runs). Pool sits around [-1.9, z 0.6]; the
 // equipment pad along z=-2.2 east of it.
+// Suction rises off the deck into the pump's white inlet stub.
 const suctionPool: Point[] = [
   [2.2, 0.1, -2.0],
   [2.7, 0.1, -2.15],
-  [3.2, 0.1, -2.2],
-  [3.6, 0.1, -2.2],
+  [2.95, 0.1, -2.2],
+  [3.14, 0.23, -2.2],
 ];
 
-const mainRun: Point[] = [
-  [3.6, 0.1, -2.2],
-  [3.9, 0.1, -1.9],
+// Pump discharge (top stub) over to the filter's upper inlet union.
+const pumpToFilter: Point[] = [
+  [3.57, 0.52, -2.2],
+  [3.75, 0.45, -2.12],
+  [4.1, 0.32, -2.18],
+  [4.33, 0.32, -2.2],
+];
+
+// Filter's lower outlet union down and around to the heater and chlorinator.
+const filterToChlor: Point[] = [
+  [4.33, 0.18, -2.2],
+  [4.15, 0.14, -2.05],
+  [4.5, 0.1, -1.9],
   [6.3, 0.1, -1.9],
   [6.7, 0.1, -2.2],
 ];
@@ -99,18 +110,9 @@ export function Pipes({ scene }: { scene: SceneState }) {
   return (
     <group>
       <PipeRun points={suctionPool} active={scene.poolOn} flow={scene.flow} />
-      <PipeRun
-        points={mainRun}
-        active={scene.poolOn}
-        flow={scene.flow}
-      />
+      <PipeRun points={pumpToFilter} active={scene.poolOn} flow={scene.flow} />
+      <PipeRun points={filterToChlor} active={scene.poolOn} flow={scene.flow} />
       <PipeRun points={returnPool} active={scene.poolOn} flow={scene.flow} />
-
-      {/* valve tee where the suction line meets the pump */}
-      <mesh position={[3.6, 0.1, -2.2]}>
-        <cylinderGeometry args={[0.13, 0.13, 0.22, 16]} />
-        <meshStandardMaterial color="#5b636d" />
-      </mesh>
 
       {scene.chlorPct > 0 && scene.flow > 0 ? (
         <Sparkles
