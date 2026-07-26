@@ -90,22 +90,30 @@ const pumpToFilter: Point[] = [
   [6.3, 0.32, 2.63],
 ];
 
-// Filter's lower union drops to a floor run along the pad's east side, past
-// the heater, into the cell's south union.
-const filterToCell: Point[] = [
+// Filter's lower union drops and runs along the pad's east side into the
+// heater (per the owner's schematic: filter feeds the heater directly).
+const filterToHeater: Point[] = [
   [6.3, 0.18, 2.63],
   [6.52, 0.12, 2.45],
-  [6.74, 0.1, 1.9],
-  [6.74, 0.1, 1.45],
-  [6.4, 0.14, 1.2],
-  [6.05, 0.22, 1.16],
+  [6.74, 0.1, 2.0],
+  [6.6, 0.13, 1.75],
+  [6.45, 0.18, 1.6],
 ];
 
-// Out of the cell's north union and straight underground toward the pool.
+// Out of the heater's pool side into the cell, which sits between the heater
+// and the pool.
+const heaterToCell: Point[] = [
+  [6.02, 0.18, 1.35],
+  [5.8, 0.15, 1.1],
+  [5.55, 0.22, 0.99],
+];
+
+// Out of the cell's front union and underground toward the pool's
+// front-right jet inlet.
 const returnPool: Point[] = [
-  [6.05, 0.22, 0.44],
-  [6.05, 0.06, 0.36],
-  [6.05, -0.12, 0.3],
+  [5.55, 0.22, 1.71],
+  [5.5, 0.05, 1.9],
+  [5.45, -0.12, 2.0],
 ];
 
 export function Pipes({ scene }: { scene: SceneState }) {
@@ -113,7 +121,8 @@ export function Pipes({ scene }: { scene: SceneState }) {
     <group>
       <PipeRun points={suctionPool} active={scene.poolOn} flow={scene.flow} />
       <PipeRun points={pumpToFilter} active={scene.poolOn} flow={scene.flow} />
-      <PipeRun points={filterToCell} active={scene.poolOn} flow={scene.flow} />
+      <PipeRun points={filterToHeater} active={scene.poolOn} flow={scene.flow} />
+      <PipeRun points={heaterToCell} active={scene.poolOn} flow={scene.flow} />
       <PipeRun points={returnPool} active={scene.poolOn} flow={scene.flow} />
 
       {scene.chlorPct > 0 && scene.flow > 0 ? (
@@ -122,7 +131,7 @@ export function Pipes({ scene }: { scene: SceneState }) {
           size={1.5}
           color="#5eead4"
           scale={[0.5, 0.4, 1.6]}
-          position={[6.05, 0.35, 0.75]}
+          position={[5.55, 0.35, 1.35]}
         />
       ) : null}
     </group>

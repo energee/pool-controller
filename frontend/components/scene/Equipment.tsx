@@ -276,7 +276,7 @@ export function Equipment({ scene }: { scene: SceneState }) {
       {/* Pentair IntelliChlor IC40: white ribbed inline cell with a tan label
           panel and black union nuts joining the pipe at both ends; the body
           glows teal while generating. */}
-      <group position={[6.05, 0, 0.8]} rotation={[0, -Math.PI / 2, 0]} {...hover("chlorinator")}>
+      <group position={[5.55, 0, 1.35]} rotation={[0, -Math.PI / 2, 0]} {...hover("chlorinator")}>
         <mesh position={[0, 0.22, 0]}>
           <boxGeometry args={[0.44, 0.2, 0.18]} />
           <meshStandardMaterial

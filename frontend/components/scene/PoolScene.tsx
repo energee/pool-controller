@@ -139,8 +139,8 @@ export function PoolScene({ scene }: { scene: SceneState }) {
       />
 
       {/* equipment pad slab */}
-      <mesh position={[6.3, 0.04, 2.45]}>
-        <boxGeometry args={[1.6, 0.08, 4.0]} />
+      <mesh position={[6.15, 0.04, 2.45]}>
+        <boxGeometry args={[1.9, 0.08, 4.0]} />
         <meshStandardMaterial color="#d6d2c8" roughness={0.95} />
       </mesh>
 
