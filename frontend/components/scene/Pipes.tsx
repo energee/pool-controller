@@ -27,10 +27,12 @@ function PipeRun({
   points,
   active,
   flow,
+  ghost = false, // underground: drawn x-ray style through the deck
 }: {
   points: Point[];
   active: boolean;
   flow: number;
+  ghost?: boolean;
 }) {
   const stripes = React.useRef<THREE.MeshBasicMaterial>(null);
   const { curve, length } = React.useMemo(() => {
@@ -54,16 +56,28 @@ function PipeRun({
 
   return (
     <group>
-      <mesh>
+      <mesh renderOrder={ghost ? 5 : 0}>
         <tubeGeometry args={[curve, 48, 0.06, 10, false]} />
-        <meshStandardMaterial color="#aab2bb" roughness={0.6} />
+        {ghost ? (
+          <meshBasicMaterial
+            color="#9aa2ac"
+            transparent
+            opacity={0.3}
+            depthTest={false}
+            depthWrite={false}
+          />
+        ) : (
+          <meshStandardMaterial color="#aab2bb" roughness={0.6} />
+        )}
       </mesh>
-      <mesh visible={active && flow > 0}>
+      <mesh visible={active && flow > 0} renderOrder={ghost ? 6 : 0}>
         <tubeGeometry args={[curve, 48, 0.09, 10, false]} />
         <meshBasicMaterial
           ref={stripes}
           map={texture}
           transparent
+          opacity={ghost ? 0.55 : 1}
+          depthTest={!ghost}
           depthWrite={false}
         />
       </mesh>
@@ -79,6 +93,26 @@ const suctionPool: Point[] = [
   [6.3, -0.12, 4.25],
   [6.3, 0.23, 4.25],
   [6.3, 0.23, 3.99],
+];
+
+// Underground (ghosted): front-RIGHT skimmer across to the pump riser.
+const undergroundSuction: Point[] = [
+  [2.3, -0.05, 3.7],
+  [2.3, -0.45, 3.75],
+  [2.3, -0.45, 4.25],
+  [6.3, -0.45, 4.25],
+  [6.3, -0.12, 4.25],
+];
+
+// Underground (ghosted): from the cell's drop, around the pool's east end and
+// along the front of the deck to the jet inlet at the pool's FRONT-LEFT.
+const undergroundReturn: Point[] = [
+  [5.55, -0.12, 0.75],
+  [5.55, -0.45, 0.9],
+  [5.55, -0.45, 3.9],
+  [-5.93, -0.45, 3.9],
+  [-5.93, -0.45, 2.85],
+  [-5.93, -0.2, 2.7],
 ];
 
 // Pump discharge: up, over, along, and down into the filter's upper union.
@@ -113,8 +147,8 @@ const heaterToCell: Point[] = [
   [5.55, 0.22, 1.73],
 ];
 
-// Out of the cell's back union, straight down underground toward the pool's
-// front-right jet inlet.
+// Out of the cell's back union, straight down underground (continues as the
+// ghosted return run to the front-left jet).
 const returnPool: Point[] = [
   [5.55, 0.22, 0.99],
   [5.55, 0.22, 0.75],
@@ -125,6 +159,18 @@ export function Pipes({ scene }: { scene: SceneState }) {
   return (
     <group>
       <PipeRun points={suctionPool} active={scene.poolOn} flow={scene.flow} />
+      <PipeRun
+        points={undergroundSuction}
+        active={scene.poolOn}
+        flow={scene.flow}
+        ghost
+      />
+      <PipeRun
+        points={undergroundReturn}
+        active={scene.poolOn}
+        flow={scene.flow}
+        ghost
+      />
       <PipeRun points={pumpToFilter} active={scene.poolOn} flow={scene.flow} />
       <PipeRun points={filterToHeater} active={scene.poolOn} flow={scene.flow} />
       <PipeRun points={heaterToCell} active={scene.poolOn} flow={scene.flow} />
