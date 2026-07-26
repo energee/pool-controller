@@ -69,7 +69,7 @@ function rrAt(cx: number, cy: number, w: number, h: number, r: number): THREE.Sh
 function copingGeometry(): THREE.ExtrudeGeometry {
   const outer = rrAt(0, 0, POOL_SIZE[0] + 0.7, POOL_SIZE[1] + 0.7, POOL_RADIUS + 0.3);
   outer.holes.push(rrAt(0, 0, POOL_SIZE[0], POOL_SIZE[1], POOL_RADIUS));
-  return new THREE.ExtrudeGeometry(outer, { depth: 0.07, bevelEnabled: false });
+  return new THREE.ExtrudeGeometry(outer, { depth: 0.03, bevelEnabled: false });
 }
 
 // Deck slab with the pool cut out, so the sunken tile floor is visible
@@ -115,19 +115,24 @@ float hash21(vec2 p) {
   return fract(p.x * p.y);
 }
 void main() {
-  // shape space: x/y are plan coords, z runs bottom (0) to waterline (1.8)
-  vec2 tp = (abs(vNorm.x) > abs(vNorm.y)
+  // shape space: x/y are plan coords, z runs bottom (0) to waterline (2.1)
+  vec2 tp = abs(vNorm.x) > abs(vNorm.y)
     ? vec2(vPos.y, vPos.z)
-    : vec2(vPos.x, vPos.z)) / 0.42;
-  vec2 cell = floor(tp);
-  vec2 f = abs(fract(tp) - 0.5);
-  vec3 tile = mix(vec3(0.75, 0.88, 0.90), vec3(0.56, 0.76, 0.81), hash21(cell) * 0.7);
-  vec2 aa = fwidth(tp) * 1.2;
-  vec2 gs = smoothstep(vec2(0.465) - aa, vec2(0.465), f);
-  vec3 base = mix(tile, vec3(0.90, 0.93, 0.94), max(gs.x, gs.y));
+    : vec2(vPos.x, vPos.z);
+  // speckled vinyl liner, matching the floor
+  float sp = hash21(floor(tp * 22.0));
+  float fleck = step(0.82, hash21(floor(tp * 22.0) + 7.3));
+  vec3 base = mix(vec3(0.62, 0.82, 0.90), vec3(0.42, 0.68, 0.82), 0.35 * sp);
+  base = mix(base, vec3(0.30, 0.55, 0.72), fleck * 0.6);
+  // decorative border band at the waterline: navy with a light diamond motif
+  float band = smoothstep(1.78, 1.84, vPos.z);
+  float dia = smoothstep(0.55, 0.35,
+    abs(fract(tp.x * 2.2) - 0.5) + abs(fract((vPos.z - 1.84) * 3.2) - 0.5));
+  vec3 border = mix(vec3(0.16, 0.35, 0.55), vec3(0.78, 0.88, 0.94), dia * 0.8);
+  base = mix(base, border, band);
   float depth = clamp(1.0 - vPos.z / 2.1, 0.0, 1.0);
-  vec3 color = base * vec3(0.62, 0.88, 0.98);
-  color *= mix(1.0, 0.6, depth);
+  vec3 color = base * vec3(0.72, 0.92, 1.0);
+  color *= mix(1.0, 0.62, depth);
   gl_FragColor = vec4(color, 1.0);
 }
 `;
@@ -138,8 +143,8 @@ export function PoolScene({ scene }: { scene: SceneState }) {
   const walls = React.useMemo(wallsGeometry, []);
   const deckMats = React.useMemo(
     () => [
-      new THREE.MeshStandardMaterial({ color: "#e0dcd3", roughness: 0.95 }),
-      new THREE.MeshStandardMaterial({ color: "#b9d4d9", roughness: 0.9 }),
+      new THREE.MeshStandardMaterial({ color: "#d9cfbd", roughness: 0.95 }),
+      new THREE.MeshStandardMaterial({ color: "#c4b9a5", roughness: 0.9 }),
     ],
     [],
   );
@@ -184,7 +189,7 @@ export function PoolScene({ scene }: { scene: SceneState }) {
         rotation={[-Math.PI / 2, 0, 0]}
         position={[POOL_POS[0], 0.005, POOL_POS[1]]}
       >
-        <meshStandardMaterial color="#efece3" roughness={0.9} />
+        <meshStandardMaterial color="#d5cab6" roughness={0.95} />
       </mesh>
       <Water
         size={POOL_SIZE}

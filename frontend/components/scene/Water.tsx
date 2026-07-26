@@ -151,15 +151,13 @@ void main() {
   float div = (nxE - infoC.b) + (nzN - infoC.a);
   float caustic = 0.68 + 2.2 * pow(clamp(0.5 + 6.0 * div, 0.0, 1.0), 3.0);
 
-  // Procedural tiles with fake refraction: offset the lookup by surface slope
-  // times depth (first-order stand-in for the demo's ray-box refraction).
-  vec2 tp = (vPos + above.ba * (vDepth * 0.6)) / uTileSize;
-  vec2 cell = floor(tp);
-  vec2 f = abs(fract(tp) - 0.5);
-  vec3 tile = mix(vec3(0.75, 0.88, 0.90), vec3(0.56, 0.76, 0.81), hash21(cell) * 0.7);
-  vec2 aa = fwidth(tp) * 1.2;
-  vec2 gs = smoothstep(vec2(0.465) - aa, vec2(0.465), f);
-  vec3 base = mix(tile, vec3(0.90, 0.93, 0.94), max(gs.x, gs.y));
+  // Speckled vinyl liner (like the real pool) with fake refraction: offset the
+  // lookup by surface slope times depth.
+  vec2 tp = vPos + above.ba * (vDepth * 0.6);
+  float sp = hash21(floor(tp * 22.0));
+  float fleck = step(0.82, hash21(floor(tp * 22.0) + 7.3));
+  vec3 base = mix(vec3(0.62, 0.82, 0.90), vec3(0.42, 0.68, 0.82), 0.35 * sp);
+  base = mix(base, vec3(0.30, 0.55, 0.72), fleck * 0.6);
 
   // Depth tint (deeper middle sits dimmer) + a wall-shadow band at the edge.
   float dn = (vDepth - uDepthEnds) / max(uDepthMid - uDepthEnds, 0.001);
