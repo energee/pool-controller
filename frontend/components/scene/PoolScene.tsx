@@ -99,14 +99,16 @@ function deckGeometry(): THREE.ExtrudeGeometry {
 // of the 4'-5'-4' floor (the opaque floor hides the excess at the ends). Inset
 // a hair inside the deck cutout so the liner faces never z-fight the deck.
 function wallsGeometry(): THREE.ExtrudeGeometry {
-  const outer = rrAt(0, 0, POOL_SIZE[0] - 0.02, POOL_SIZE[1] - 0.02, POOL_RADIUS - 0.01, [
-    BAY[0] - 0.01,
-    BAY[1] - 0.02,
+  // 0.03+ clearance from the deck's cut faces on the outside and from the
+  // white stair shell on the inside — near-parallel faces any closer shimmer.
+  const outer = rrAt(0, 0, POOL_SIZE[0] - 0.06, POOL_SIZE[1] - 0.06, POOL_RADIUS - 0.03, [
+    BAY[0] - 0.03,
+    BAY[1] - 0.06,
   ]);
   outer.holes.push(
-    rrAt(0, 0, POOL_SIZE[0] - 0.16, POOL_SIZE[1] - 0.16, POOL_RADIUS - 0.08, [
-      BAY[0] - 0.08,
-      BAY[1] - 0.16,
+    rrAt(0, 0, POOL_SIZE[0] - 0.2, POOL_SIZE[1] - 0.2, POOL_RADIUS - 0.1, [
+      BAY[0] - 0.1,
+      BAY[1] - 0.2,
     ]),
   );
   return new THREE.ExtrudeGeometry(outer, { depth: 2.1, bevelEnabled: false });
@@ -184,24 +186,21 @@ export function PoolScene({ scene }: { scene: SceneState }) {
         const top = -0.22 - 0.34 * i;
         const h = top + 1.65;
         return (
-          <mesh key={i} position={[-9.965 + 0.45 * i, top - h / 2, POOL_POS[1]]}>
-            <boxGeometry args={[0.45, h, BAY[1] - 0.28]} />
+          <mesh key={i} position={[-9.775 + 0.45 * i, top - h / 2, POOL_POS[1]]}>
+            <boxGeometry args={[0.45, h, 3.0]} />
             <meshStandardMaterial color="#f4f3ee" roughness={0.8} />
           </mesh>
         );
       })}
       {[1, -1].map((side) => (
-        <mesh
-          key={side}
-          position={[-9.29, -0.83, POOL_POS[1] + side * (BAY[1] / 2 - 0.1)]}
-        >
-          <boxGeometry args={[1.82, 1.66, 0.12]} />
+        <mesh key={side} position={[-9.2, -0.83, POOL_POS[1] + side * 1.52]}>
+          <boxGeometry args={[1.64, 1.66, 0.12]} />
           <meshStandardMaterial color="#f4f3ee" roughness={0.8} />
         </mesh>
       ))}
       {/* white back panel — the fiberglass shell covers the bay's liner */}
-      <mesh position={[-10.08, -0.83, POOL_POS[1]]}>
-        <boxGeometry args={[0.14, 1.66, BAY[1] - 0.12]} />
+      <mesh position={[-9.99, -0.83, POOL_POS[1]]}>
+        <boxGeometry args={[0.14, 1.66, 3.16]} />
         <meshStandardMaterial color="#f4f3ee" roughness={0.8} />
       </mesh>
 
