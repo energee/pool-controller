@@ -3,7 +3,7 @@
   "private": true,
   "description": "React + shadcn/ui + Tailwind v4 dashboard frontend for easytouch. Bun bundles frontend/app.tsx -> easytouch/static/app.js and @tailwindcss/cli compiles styles -> easytouch/static/style.css; the committed build output is what the Python server serves (no Node/Bun needed at runtime).",
   "scripts": {
-    "build": "bunx @tailwindcss/cli -i frontend/styles.css -o easytouch/static/style.css --minify && bun build frontend/app.tsx --outfile easytouch/static/app.js --target browser --minify && cp frontend/index.html frontend/pentair.svg easytouch/static/",
+    "build": "node_modules/.bin/tailwindcss -i frontend/styles.css -o easytouch/static/style.css --minify && bun build frontend/app.tsx --outfile easytouch/static/app.js --target browser --minify && cp frontend/index.html frontend/pentair.svg easytouch/static/",
     "typecheck": "tsc --noEmit",
     "test": "bun test server frontend"
   },

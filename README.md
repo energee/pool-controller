@@ -283,6 +283,10 @@ the committed build output is what the server ships, so **no Node/Bun is needed
 at runtime** — only after editing `frontend/` (run `bun run build`). It polls
 `GET /state` every ~3s (no manual refresh button — the header pill shows
 freshness). There is no separate summary strip: the controls are the readings.
+
+- A **live 3D system scene** shows pool/spa water, pump, filter, heater,
+  chlorinator, and animated flow driven by the `/state` poll.
+
 A freeze-protect / service-mode banner appears only when active; below it, one
 flat titled section per control surface (no card chrome — inner tiles and
 inputs carry their own affordances) — equipment (a full-width two-row band of
