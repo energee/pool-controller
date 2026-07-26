@@ -1,7 +1,7 @@
 // Full-width dashboard card hosting the live 3D system scene. Owns the WebGL
-// guard, the r3f Canvas (fixed perspective camera, aimed by PoolScene's
-// CameraRig), and the stale overlay; all live-state interpretation happens in
-// deriveSceneState.
+// guard, the r3f Canvas (perspective camera seeded by PoolScene's CameraRig,
+// then user-orbitable via drag/wheel), and the stale overlay; all live-state
+// interpretation happens in deriveSceneState.
 import * as React from "react";
 import { Canvas } from "@react-three/fiber";
 

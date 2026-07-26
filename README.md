@@ -292,7 +292,8 @@ freshness). There is no separate summary strip: the controls are the readings.
   poll: return-jet wave trains, ripple churn, and pipe-flow speed scale with pump GPM/RPM, the
   active pool/spa branch carries the flow, the heater and chlorinator glow
   when on, the spa bubbles, and hovering equipment shows its live numbers.
-  Stale or disconnected data freezes and desaturates the scene.
+  Drag/wheel orbits the scene. Stale or disconnected data freezes and
+  desaturates it.
 
 A freeze-protect / service-mode banner appears only when active; below it, one
 flat titled section per control surface (no card chrome — inner tiles and

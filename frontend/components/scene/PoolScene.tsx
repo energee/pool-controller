@@ -1,10 +1,10 @@
 // The scene graph for the pool system card, styled after a real backyard pool:
 // a rounded-rect turquoise pool sunk into a light concrete deck with white
 // coping, a dark hot-tub spa, and the equipment pad + plumbing beside them.
-// Pure presentation of a SceneState; the camera rig fixes the photo-like view.
+// Pure presentation of a SceneState; drag/wheel orbits around the pool.
 import * as React from "react";
-import { Html, Sparkles } from "@react-three/drei";
-import { useFrame } from "@react-three/fiber";
+import { Html, OrbitControls, Sparkles } from "@react-three/drei";
+import { useThree } from "@react-three/fiber";
 import * as THREE from "three";
 
 import type { SceneState } from "../../lib/scene";
@@ -20,14 +20,28 @@ const SPA_POS: [number, number] = [4.3, 2.5];
 const CAM_POS: [number, number, number] = [6.4, 5.4, 9.4];
 const CAM_TARGET: [number, number, number] = [0.3, -0.85, 0.2];
 
-// Pin the camera every frame: the Canvas camera prop gets re-applied on each
-// poll-driven re-render, which would otherwise undo a one-shot lookAt.
+// Seed the camera's starting pose once; OrbitControls owns it from there
+// (and, unlike a one-shot lookAt, keeps re-aiming it every frame, so the
+// poll-driven camera-prop re-application can't knock the view askew).
 function CameraRig() {
-  useFrame(({ camera }) => {
+  const camera = useThree((s) => s.camera);
+  React.useEffect(() => {
     camera.position.set(...CAM_POS);
-    camera.lookAt(...CAM_TARGET);
-  });
-  return null;
+  }, [camera]);
+  return (
+    <OrbitControls
+      makeDefault
+      target={CAM_TARGET}
+      enablePan={false}
+      minDistance={5}
+      maxDistance={22}
+      // stay above the deck and never quite top-down
+      minPolarAngle={0.15}
+      maxPolarAngle={1.35}
+      enableDamping
+      dampingFactor={0.08}
+    />
+  );
 }
 
 // Rounded-rect path centred at (cx, cy) in shape space. NOTE: these shapes are
