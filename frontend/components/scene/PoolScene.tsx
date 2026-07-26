@@ -80,13 +80,14 @@ function deckGeometry(): THREE.ExtrudeGeometry {
   return new THREE.ExtrudeGeometry(outer, { depth: 0.25, bevelEnabled: false });
 }
 
-// Basin walls: a thin vertical ring from under the deck down to the floor.
+// Basin walls: a thin vertical ring from under the deck down past the deepest
+// point of the 4'-5'-4' floor (the opaque floor hides the excess at the ends).
 function wallsGeometry(): THREE.ExtrudeGeometry {
   const outer = rrAt(0, 0, POOL_SIZE[0], POOL_SIZE[1], POOL_RADIUS);
   outer.holes.push(
     rrAt(0, 0, POOL_SIZE[0] - 0.12, POOL_SIZE[1] - 0.12, POOL_RADIUS - 0.06),
   );
-  return new THREE.ExtrudeGeometry(outer, { depth: 0.62, bevelEnabled: false });
+  return new THREE.ExtrudeGeometry(outer, { depth: 1.26, bevelEnabled: false });
 }
 
 export function PoolScene({ scene }: { scene: SceneState }) {
@@ -117,7 +118,7 @@ export function PoolScene({ scene }: { scene: SceneState }) {
       <mesh
         geometry={walls}
         rotation={[-Math.PI / 2, 0, 0]}
-        position={[POOL_POS[0], -0.87, POOL_POS[1]]}
+        position={[POOL_POS[0], -1.51, POOL_POS[1]]}
       >
         <meshStandardMaterial color="#b9d4d9" roughness={0.9} />
       </mesh>

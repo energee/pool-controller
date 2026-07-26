@@ -77,9 +77,11 @@ void main() {
   // visible through the middle from our high fixed camera.
   float fres = mix(0.12, 1.0, pow(1.0 - max(dot(normal, -ray), 0.0), 3.0));
 
-  float along = clamp((vPos.x + uHalf.x) / (2.0 * uHalf.x), 0.0, 1.0);
+  // Both ends are the 4' shallows, the middle is the 5' deep — mirror the
+  // floor's depth profile in the body color.
+  float ends = pow(clamp(abs(vPos.x) / uHalf.x, 0.0, 1.0), 2.0);
   float edge = smoothstep(-0.45, 0.0, d);
-  vec3 body = mix(uDeep, uShallow, 0.25 + 0.40 * along + 0.30 * edge);
+  vec3 body = mix(uDeep, uShallow, 0.20 + 0.35 * ends + 0.30 * edge);
 
   vec3 color = mix(body, skyColor(refl), fres);
 
@@ -93,11 +95,21 @@ void main() {
 }
 `;
 
+// The floor carries the pool's depth profile: 4' at both ends, 5' in the
+// middle (1.2/1.5 wu), blended parabolically along the long axis. The mesh
+// sits at water level and each vertex is pushed down by its local depth.
 const FLOOR_VERT = /* glsl */ `
+uniform vec2 uHalf;
+uniform float uDepthEnds;
+uniform float uDepthMid;
 varying vec2 vPos;
+varying float vDepth;
 void main() {
   vPos = position.xy;
-  gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+  float t = clamp(abs(position.x) / uHalf.x, 0.0, 1.0);
+  vDepth = uDepthMid - (uDepthMid - uDepthEnds) * t * t;
+  gl_Position = projectionMatrix * modelViewMatrix
+    * vec4(position.x, position.y, -vDepth, 1.0);
 }
 `;
 
@@ -107,9 +119,11 @@ uniform vec2 uHalf;
 uniform float uRadius;
 uniform vec2 uDelta;
 uniform vec3 uLight;
-uniform float uDepth;
+uniform float uDepthEnds;
+uniform float uDepthMid;
 uniform float uTileSize;
 varying vec2 vPos;
+varying float vDepth;
 
 float hash21(vec2 p) {
   p = fract(p * vec2(234.34, 435.345));
@@ -130,7 +144,7 @@ void main() {
   // crests (converging lens), dark under troughs. 3 extra taps, no extra pass.
   vec3 refr = refract(-uLight, vec3(0.0, 1.0, 0.0), 0.750);
   // sim v maps to world -z (rotated plane), so the world-z shear flips sign
-  vec2 cuv = uv + vec2(refr.x, -refr.z) / refr.y * uDepth / (2.0 * uHalf);
+  vec2 cuv = uv + vec2(refr.x, -refr.z) / refr.y * vDepth / (2.0 * uHalf);
   vec4 infoC = texture2D(uSim, cuv);
   float nxE = texture2D(uSim, cuv + vec2(uDelta.x, 0.0)).b;
   float nzN = texture2D(uSim, cuv + vec2(0.0, uDelta.y)).a;
@@ -139,7 +153,7 @@ void main() {
 
   // Procedural tiles with fake refraction: offset the lookup by surface slope
   // times depth (first-order stand-in for the demo's ray-box refraction).
-  vec2 tp = (vPos + above.ba * (uDepth * 0.6)) / uTileSize;
+  vec2 tp = (vPos + above.ba * (vDepth * 0.6)) / uTileSize;
   vec2 cell = floor(tp);
   vec2 f = abs(fract(tp) - 0.5);
   vec3 tile = mix(vec3(0.75, 0.88, 0.90), vec3(0.56, 0.76, 0.81), hash21(cell) * 0.7);
@@ -147,11 +161,11 @@ void main() {
   vec2 gs = smoothstep(vec2(0.465) - aa, vec2(0.465), f);
   vec3 base = mix(tile, vec3(0.90, 0.93, 0.94), max(gs.x, gs.y));
 
-  // Depth tint, deep-end falloff, and a wall-shadow band near the SDF edge.
-  float along = clamp((vPos.x + uHalf.x) / (2.0 * uHalf.x), 0.0, 1.0);
+  // Depth tint (deeper middle sits dimmer) + a wall-shadow band at the edge.
+  float dn = (vDepth - uDepthEnds) / max(uDepthMid - uDepthEnds, 0.001);
   float wall = smoothstep(-0.55, -0.02, d);
   vec3 color = base * caustic * vec3(0.62, 0.88, 0.98);
-  color *= mix(0.80, 1.0, along);
+  color *= mix(1.0, 0.80, clamp(dn, 0.0, 1.0));
   color *= mix(1.0, 0.55, wall);
   gl_FragColor = vec4(color, 1.0);
 }
@@ -163,7 +177,8 @@ const LIGHT_DIR = new THREE.Vector3(6, 10, 4).normalize(); // matches the scene'
 const POOL = {
   res: [256, 128] as [number, number],
   segments: [96, 64] as [number, number],
-  depth: 0.9,
+  depthEnds: 1.2, // 4 ft
+  depthMid: 1.5, // 5 ft
   alphaRange: [0.42, 0.9] as [number, number],
   tileSize: 0.42,
   heightScale: 1.6,
@@ -235,7 +250,8 @@ export function Water({
         uRadius: { value: radius },
         uDelta: { value: new THREE.Vector2(1 / v.res[0], 1 / v.res[1]) },
         uLight: { value: LIGHT_DIR },
-        uDepth: { value: v.depth },
+        uDepthEnds: { value: v.depthEnds },
+        uDepthMid: { value: v.depthMid },
         uTileSize: { value: v.tileSize },
       },
     };
@@ -256,8 +272,8 @@ export function Water({
 
   return (
     <group position={position}>
-      <mesh position={[0, -v.depth, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-        <planeGeometry args={[size[0], size[1], 1, 1]} />
+      <mesh rotation={[-Math.PI / 2, 0, 0]}>
+        <planeGeometry args={[size[0], size[1], 48, 1]} />
         <shaderMaterial
           ref={floor}
           uniforms={uniforms.floor}

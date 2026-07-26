@@ -285,7 +285,7 @@ at runtime** — only after editing `frontend/` (run `bun run build`). It polls
 freshness). There is no separate summary strip: the controls are the readings.
 
 - A **live 3D system scene** (top card) renders a backyard-style 16x32 ft
-  pool with simulated water — a GPU height-field wave simulation (after
+  pool (4' ends, 5' middle) with simulated water — a GPU height-field wave simulation (after
   Evan Wallace's WebGL water) with refracted procedural pool tiles,
   caustics, and sky reflection — plus the pump, filter, heater, and
   chlorinator connected by pipes. Everything animates from the `/state`
