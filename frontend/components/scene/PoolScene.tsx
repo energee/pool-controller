@@ -146,11 +146,11 @@ export function PoolScene({ scene }: { scene: SceneState }) {
 
       {/* skimmer lid on the deck at the pool's front-right — the suction line
           runs underground from here to the pump */}
-      <mesh position={[2.3, 0.02, 3.7]}>
+      <mesh position={[1.7, 0.02, 3.7]}>
         <cylinderGeometry args={[0.22, 0.22, 0.035, 20]} />
         <meshStandardMaterial color="#d8d0bc" roughness={0.9} />
       </mesh>
-      <mesh position={[2.3, 0.04, 3.7]}>
+      <mesh position={[1.7, 0.04, 3.7]}>
         <cylinderGeometry args={[0.15, 0.15, 0.01, 20]} />
         <meshStandardMaterial color="#c2b9a3" roughness={0.9} />
       </mesh>
