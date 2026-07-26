@@ -207,12 +207,17 @@ export function PoolScene({ scene }: { scene: SceneState }) {
       {[1, -1].map((side) => (
         <mesh
           key={side}
-          position={[-9.29, -0.85, POOL_POS[1] + side * (BAY[1] / 2 - 0.1)]}
+          position={[-9.29, -0.81, POOL_POS[1] + side * (BAY[1] / 2 - 0.1)]}
         >
-          <boxGeometry args={[1.82, 1.6, 0.12]} />
+          <boxGeometry args={[1.82, 1.7, 0.12]} />
           <meshStandardMaterial color="#f4f3ee" roughness={0.8} />
         </mesh>
       ))}
+      {/* white back panel — the fiberglass shell covers the bay's liner */}
+      <mesh position={[-10.08, -0.81, POOL_POS[1]]}>
+        <boxGeometry args={[0.14, 1.7, BAY[1] - 0.12]} />
+        <meshStandardMaterial color="#f4f3ee" roughness={0.8} />
+      </mesh>
 
       {/* tile-linered basin walls from the waterline down to the floor */}
       <mesh
