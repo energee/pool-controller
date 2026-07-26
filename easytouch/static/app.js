@@ -4937,6 +4937,13 @@ float hash21(vec2 p) {
   return fract(p.x * p.y);
 }
 void main() {
+  // Stair bay (west of the pool proper): white fiberglass shell, no liner.
+  // -6.1 = pool half-width 6.3 minus the wall inset margin.
+  if (vPos.x < -6.1) {
+    float dpt = clamp(1.0 - vPos.z / 2.1, 0.0, 1.0);
+    gl_FragColor = vec4(vec3(0.95, 0.94, 0.91) * mix(1.0, 0.82, dpt), 1.0);
+    return;
+  }
   // shape space: x/y are plan coords, z runs bottom (0) to waterline (2.1)
   vec2 tp = abs(vNorm.x) > abs(vNorm.y)
     ? vec2(vPos.y, vPos.z)
