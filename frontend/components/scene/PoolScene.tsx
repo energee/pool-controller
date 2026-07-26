@@ -189,18 +189,27 @@ export function PoolScene({ scene }: { scene: SceneState }) {
         rotation={[-Math.PI / 2, 0, 0]}
         position={[0, -2.2, 0]}
       />
-      {/* molded white treads inside the protruding stair bay, descending east
-          into the pool like the real fiberglass steps */}
-      {[0, 1, 2].map((i) => {
-        const top = -0.22 - 0.38 * i;
+      {/* molded white stair unit filling the bay: four treads descending from
+          the alcove back into the pool, flanked by fiberglass sidewalls */}
+      {[0, 1, 2, 3].map((i) => {
+        const top = -0.22 - 0.34 * i;
         const h = top + 1.65;
         return (
-          <mesh key={i} position={[-9.95 + 0.47 * i, top - h / 2, POOL_POS[1]]}>
-            <boxGeometry args={[0.47, h, BAY[1] - 0.2]} />
+          <mesh key={i} position={[-9.965 + 0.45 * i, top - h / 2, POOL_POS[1]]}>
+            <boxGeometry args={[0.45, h, BAY[1] - 0.28]} />
             <meshStandardMaterial color="#f4f3ee" roughness={0.8} />
           </mesh>
         );
       })}
+      {[1, -1].map((side) => (
+        <mesh
+          key={side}
+          position={[-9.29, -0.85, POOL_POS[1] + side * (BAY[1] / 2 - 0.1)]}
+        >
+          <boxGeometry args={[1.82, 1.6, 0.12]} />
+          <meshStandardMaterial color="#f4f3ee" roughness={0.8} />
+        </mesh>
+      ))}
 
       {/* tile-linered basin walls from the waterline down to the floor */}
       <mesh
