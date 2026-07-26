@@ -59,6 +59,28 @@ python -m easytouch --port socket://192.168.4.70:4000 status
 
 `--port` accepts `socket://HOST:PORT` (raw TCP) or `tcp://HOST:PORT` (an alias).
 
+### Development without hardware (mock bus)
+
+`tools/mock_bus.py` is a fake controller that speaks the same wire protocol over
+TCP — no USB adapter, no PTY, no `socat`:
+
+```bash
+python tools/mock_bus.py &                                    # 127.0.0.1:4000
+python -m easytouch --port socket://127.0.0.1:4000 serve --http-port 8080
+# then open http://localhost:8080/
+```
+
+It broadcasts controller status, date/time, pump and IntelliChlor frames, answers
+the heat / schedule / version requests `BusMonitor` makes, and applies writes
+(circuits, heat set-points, schedules, clock, chlorinator output) to its in-memory
+state — so dashboard controls confirm exactly as they do against real hardware.
+`--host`/`--port` move the listener; `--selftest` decodes every generated frame
+through the real decoders and exits.
+
+Frontend work is the same loop plus a rebuild: edit `frontend/`, run
+`bun run build`, reload the page (the server ships the committed
+`easytouch/static/` bundle, so nothing is served from `frontend/` directly).
+
 ## Run on a Raspberry Pi (systemd)
 
 Deploy the dashboard on a Pi wired straight to the RS-485 bus. Only Python
@@ -370,6 +392,7 @@ notes.
 | `easytouch/static/`       | Built dashboard bundle (`app.js` + `index.html`/`style.css`), committed |
 | `frontend/`               | Dashboard source (TypeScript modules + CSS/HTML); `bun run build` |
 | `easytouch/cli.py`        | `python -m easytouch` command-line interface        |
+| `tools/mock_bus.py`       | Fake controller over TCP for hardware-free development |
 | `tests/`                  | Unit tests against real captured frames             |
 
 ## Tests
