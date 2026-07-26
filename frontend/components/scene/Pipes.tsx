@@ -71,44 +71,41 @@ function PipeRun({
   );
 }
 
-// Waypoints (y=0.1 ground runs), matching the real equipment room: heater on
-// the west end of the pad, filter center, pump east; the IntelliChlor lies
-// low in front near the heater. Flow: pool -> pump -> filter -> heater ->
-// cell -> return inlet.
+// The pool runs are buried: only the equipment-pad piping is visible, plus a
+// short riser where the suction emerges from the ground into the pump and a
+// short drop where the return dives back under the deck after the cell. The
+// pool ends are underground — suction from the front-left skimmer, jet inlet
+// at the front-right (see Water.tsx / PoolScene.tsx).
 const suctionPool: Point[] = [
-  [3.05, 0.1, 1.9],
-  [3.6, 0.1, 2.5],
-  [4.6, 0.1, 2.9],
-  [5.45, 0.1, 3.15],
-  [5.63, 0.23, 3.3],
+  [6.3, -0.12, 4.18],
+  [6.3, 0.05, 4.12],
+  [6.3, 0.24, 4.0],
 ];
 
-// Pump discharge (top stub) runs high back west to the filter's upper union.
+// Pump discharge (top stub) runs back along the pad to the filter's unions.
 const pumpToFilter: Point[] = [
-  [6.07, 0.52, 3.3],
-  [5.8, 0.47, 3.4],
-  [5.45, 0.34, 3.34],
-  [5.23, 0.32, 3.3],
+  [6.3, 0.52, 3.53],
+  [6.4, 0.46, 3.25],
+  [6.35, 0.35, 2.82],
+  [6.3, 0.32, 2.63],
 ];
 
-// Filter's lower union drops to a floor run past the heater's front and into
-// the cell's east union.
+// Filter's lower union drops to a floor run along the pad's east side, past
+// the heater, into the cell's south union.
 const filterToCell: Point[] = [
-  [5.23, 0.18, 3.3],
-  [5.42, 0.12, 3.5],
-  [4.9, 0.1, 3.64],
-  [4.05, 0.1, 3.64],
-  [3.82, 0.14, 3.6],
-  [3.66, 0.22, 3.55],
+  [6.3, 0.18, 2.63],
+  [6.52, 0.12, 2.45],
+  [6.74, 0.1, 1.9],
+  [6.74, 0.1, 1.45],
+  [6.4, 0.14, 1.2],
+  [6.05, 0.22, 1.16],
 ];
 
-// Out of the cell's west union and along the deck edge to the return inlet.
+// Out of the cell's north union and straight underground toward the pool.
 const returnPool: Point[] = [
-  [2.94, 0.22, 3.55],
-  [2.4, 0.14, 3.95],
-  [1.5, 0.1, 4.15],
-  [0.9, 0.1, 3.9],
-  [0.9, 0.1, 3.15],
+  [6.05, 0.22, 0.44],
+  [6.05, 0.06, 0.36],
+  [6.05, -0.12, 0.3],
 ];
 
 export function Pipes({ scene }: { scene: SceneState }) {
@@ -125,7 +122,7 @@ export function Pipes({ scene }: { scene: SceneState }) {
           size={1.5}
           color="#5eead4"
           scale={[0.5, 0.4, 1.6]}
-          position={[3.1, 0.35, 3.6]}
+          position={[6.05, 0.35, 0.75]}
         />
       ) : null}
     </group>

@@ -17,8 +17,8 @@ import { Water } from "./Water";
 const POOL_POS: [number, number] = [-1.9, 0.6];
 const POOL_SIZE: [number, number] = [9.6, 4.8];
 const POOL_RADIUS = 1.2;
-const CAM_POS: [number, number, number] = [7.6, 6.6, 11.4];
-const CAM_TARGET: [number, number, number] = [-0.3, -1.15, 0.1];
+const CAM_POS: [number, number, number] = [7.9, 6.7, 11.3];
+const CAM_TARGET: [number, number, number] = [0.1, -1.1, 0.1];
 
 // Seed the camera's starting pose once; OrbitControls owns it from there
 // (and, unlike a one-shot lookAt, keeps re-aiming it every frame, so the
@@ -139,9 +139,20 @@ export function PoolScene({ scene }: { scene: SceneState }) {
       />
 
       {/* equipment pad slab */}
-      <mesh position={[4.9, 0.04, 3.3]}>
-        <boxGeometry args={[4.0, 0.08, 1.6]} />
+      <mesh position={[6.3, 0.04, 2.45]}>
+        <boxGeometry args={[1.6, 0.08, 4.0]} />
         <meshStandardMaterial color="#d6d2c8" roughness={0.95} />
+      </mesh>
+
+      {/* skimmer lid on the deck at the pool's front-left — the suction line
+          runs underground from here to the pump */}
+      <mesh position={[-5.6, 0.02, 3.75]}>
+        <cylinderGeometry args={[0.22, 0.22, 0.035, 20]} />
+        <meshStandardMaterial color="#d8d0bc" roughness={0.9} />
+      </mesh>
+      <mesh position={[-5.6, 0.04, 3.75]}>
+        <cylinderGeometry args={[0.15, 0.15, 0.01, 20]} />
+        <meshStandardMaterial color="#c2b9a3" roughness={0.9} />
       </mesh>
 
       <Pipes scene={scene} />
