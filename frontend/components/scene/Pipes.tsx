@@ -100,9 +100,9 @@ const suctionPool: Point[] = [
 
 // Underground (ghosted): front-RIGHT skimmer across to the pump riser.
 const undergroundSuction: Point[] = [
-  [1.7, -0.05, 3.7],
-  [1.7, -0.45, 3.75],
-  [1.7, -0.45, 4.25],
+  [1.7, -0.05, 4.1],
+  [1.7, -0.45, 4.15],
+  [1.7, -0.45, 4.3],
   [6.3, -0.45, 4.25],
   [6.3, -0.12, 4.25],
 ];
@@ -113,9 +113,9 @@ const undergroundReturn: Point[] = [
   [5.55, -0.12, 2.05],
   [5.55, -0.45, 2.2],
   [5.55, -0.45, 3.9],
-  [-5.33, -0.45, 3.9],
-  [-5.33, -0.45, 2.85],
-  [-5.33, -0.2, 2.7],
+  [-5.33, -0.45, 3.95],
+  [-5.33, -0.45, 3.55],
+  [-5.33, -0.2, 3.4],
 ];
 
 // Pump discharge: up, over, along, and down into the filter's upper union.

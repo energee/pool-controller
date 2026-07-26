@@ -12,13 +12,13 @@ import { Equipment } from "./Equipment";
 import { Pipes } from "./Pipes";
 import { Water } from "./Water";
 
-// Pool footprint: a 16x32 ft (2:1) rounded rect at ~2.9 ft/wu, centred at
-// [-2.0, 0.3] with the long axis on X.
-const POOL_POS: [number, number] = [-2.0, 0.3];
-const POOL_SIZE: [number, number] = [11.0, 5.5];
+// Pool footprint: a 16x32 ft (2:1) rounded rect at ~2.54 ft/wu, centred at
+// [-2.5, 0.2] — the pool nearly fills the deck, like the real enclosure.
+const POOL_POS: [number, number] = [-2.5, 0.2];
+const POOL_SIZE: [number, number] = [12.6, 6.3];
 const POOL_RADIUS = 1.2;
-const CAM_POS: [number, number, number] = [8.3, 7.0, 11.9];
-const CAM_TARGET: [number, number, number] = [-0.5, -1.1, 0.1];
+const CAM_POS: [number, number, number] = [8.8, 7.6, 12.6];
+const CAM_TARGET: [number, number, number] = [-0.8, -1.15, 0.1];
 
 // Seed the camera's starting pose once; OrbitControls owns it from there
 // (and, unlike a one-shot lookAt, keeps re-aiming it every frame, so the
@@ -80,7 +80,7 @@ function deckGeometry(): THREE.ExtrudeGeometry {
   outer.holes.push(
     rrAt(POOL_POS[0], -POOL_POS[1], POOL_SIZE[0], POOL_SIZE[1], POOL_RADIUS),
   );
-  return new THREE.ExtrudeGeometry(outer, { depth: 0.25, bevelEnabled: false });
+  return new THREE.ExtrudeGeometry(outer, { depth: 2.2, bevelEnabled: false });
 }
 
 // Basin walls: a vertical ring from the waterline down past the deepest point
@@ -91,7 +91,7 @@ function wallsGeometry(): THREE.ExtrudeGeometry {
   outer.holes.push(
     rrAt(0, 0, POOL_SIZE[0] - 0.16, POOL_SIZE[1] - 0.16, POOL_RADIUS - 0.08),
   );
-  return new THREE.ExtrudeGeometry(outer, { depth: 1.8, bevelEnabled: false });
+  return new THREE.ExtrudeGeometry(outer, { depth: 2.1, bevelEnabled: false });
 }
 
 // The walls carry the same procedural tile liner as the floor: tiling plane
@@ -125,7 +125,7 @@ void main() {
   vec2 aa = fwidth(tp) * 1.2;
   vec2 gs = smoothstep(vec2(0.465) - aa, vec2(0.465), f);
   vec3 base = mix(tile, vec3(0.90, 0.93, 0.94), max(gs.x, gs.y));
-  float depth = clamp(1.0 - vPos.z / 1.8, 0.0, 1.0);
+  float depth = clamp(1.0 - vPos.z / 2.1, 0.0, 1.0);
   vec3 color = base * vec3(0.62, 0.88, 0.98);
   color *= mix(1.0, 0.6, depth);
   gl_FragColor = vec4(color, 1.0);
@@ -154,16 +154,17 @@ export function PoolScene({ scene }: { scene: SceneState }) {
         geometry={deck}
         material={deckMats}
         rotation={[-Math.PI / 2, 0, 0]}
-        position={[0, -0.25, 0]}
+        position={[0, -2.2, 0]}
       />
-      {/* white entry stairs descending into the pool's west end */}
-      {[0, 1, 2, 3].map((i) => {
-        const top = -0.2 - 0.3 * i;
-        const h = top + 1.35;
+      {/* molded white stair bay at the shallow end: three wide treads like the
+          real pool's fiberglass steps */}
+      {[0, 1, 2].map((i) => {
+        const top = -0.22 - 0.38 * i;
+        const h = top + 1.65;
         return (
-          <mesh key={i} position={[-7.3 + 0.4 * i, top - h / 2, POOL_POS[1]]}>
-            <boxGeometry args={[0.4, h, 2.4]} />
-            <meshStandardMaterial color="#f2f1ec" roughness={0.85} />
+          <mesh key={i} position={[-8.5 + 0.55 * i, top - h / 2, POOL_POS[1]]}>
+            <boxGeometry args={[0.55, h, 3.4]} />
+            <meshStandardMaterial color="#f4f3ee" roughness={0.8} />
           </mesh>
         );
       })}
@@ -172,7 +173,7 @@ export function PoolScene({ scene }: { scene: SceneState }) {
       <mesh
         geometry={walls}
         rotation={[-Math.PI / 2, 0, 0]}
-        position={[POOL_POS[0], -1.75, POOL_POS[1]]}
+        position={[POOL_POS[0], -2.05, POOL_POS[1]]}
       >
         <shaderMaterial vertexShader={WALL_VERT} fragmentShader={WALL_FRAG} />
       </mesh>
@@ -205,11 +206,11 @@ export function PoolScene({ scene }: { scene: SceneState }) {
       </mesh>
       {/* skimmer lid on the deck at the pool's front-right — the suction line
           runs underground from here to the pump */}
-      <mesh position={[1.7, 0.02, 3.7]}>
+      <mesh position={[1.7, 0.02, 4.1]}>
         <cylinderGeometry args={[0.22, 0.22, 0.035, 20]} />
         <meshStandardMaterial color="#d8d0bc" roughness={0.9} />
       </mesh>
-      <mesh position={[1.7, 0.04, 3.7]}>
+      <mesh position={[1.7, 0.04, 4.1]}>
         <cylinderGeometry args={[0.15, 0.15, 0.01, 20]} />
         <meshStandardMaterial color="#c2b9a3" roughness={0.9} />
       </mesh>
