@@ -392,8 +392,8 @@ git commit -m "feat(scene): equipment pad with live effects and hover tooltips"
 **Interfaces:**
 - Produces: `export function Pipes({ scene }: { scene: SceneState })`.
 
-- [ ] **Step 1: Pipe rendering approach** — each pipe run is a polyline drawn twice with drei `<Line>`: a solid underlay (`lineWidth 6`, color `#77808c`, no dash) and a flow overlay (`lineWidth 2.5`, color `#4fc3f7`, `dashed dashSize={0.18} gapSize={0.16}`). Animate flow by decrementing the overlay's `LineMaterial.dashOffset` in `useFrame` by `dt * 1.5 * scene.flow` (ref the material). Overlay `visible` only when its branch is active and `scene.flow > 0`.
-- [ ] **Step 2: Pipe runs** (y = 0.12 everywhere; waypoints are a starting blueprint):
+- [x] **Step 1: Pipe rendering approach** — each pipe run is a polyline drawn twice with drei `<Line>`: a solid underlay (`lineWidth 6`, color `#77808c`, no dash) and a flow overlay (`lineWidth 2.5`, color `#4fc3f7`, `dashed dashSize={0.18} gapSize={0.16}`). Animate flow by decrementing the overlay's `LineMaterial.dashOffset` in `useFrame` by `dt * 1.5 * scene.flow` (ref the material). Overlay `visible` only when its branch is active and `scene.flow > 0`.
+- [x] **Step 2: Pipe runs** (y = 0.12 everywhere; waypoints are a starting blueprint):
   - `suctionPool` (active when `poolOn`): `[-2.6, 0.12, -0.8] → [-2.6, 0.12, -1.6] → [0.2, 0.12, -1.6] → [0.6, 0.12, -2.0]`
   - `suctionSpa` (active when `spaOn`): `[2.6, 0.12, 0.85] → [2.6, 0.12, -1.2] → [1.0, 0.12, -1.2] → [0.6, 0.12, -2.0]`
   - `mainRun` (active when `poolOn || spaOn`): pump → filter → heater → chlorinator: `[0.6, 0.12, -2.3] → [4.8, 0.12, -2.3]` routed through each unit's position.
@@ -401,9 +401,9 @@ git commit -m "feat(scene): equipment pad with live effects and hover tooltips"
   - `returnSpa` (active when `spaOn`): `[4.8, 0.12, -2.0] → [3.6, 0.12, -0.4] → [2.6, 0.12, 0.85]`
   - Small valve tees: dark cylinders (r=0.12, h=0.2) at the two junction points where suction lines merge and returns split.
   - Chlorinator sparkle: when `chlorPct > 0 && flow > 0`, `<Sparkles count={10} size={1.5} color="#5eead4">` along the first segment of the active return.
-- [ ] **Step 3: Flow direction check** — dashOffset must move dashes *from* suction *toward* the returns (reverse a polyline's point order if its dashes march backwards; verify visually in Task 6).
-- [ ] **Step 4: Validate** — `bun run typecheck && bun test`. Expected: clean.
-- [ ] **Step 5: Commit**
+- [x] **Step 3: Flow direction check** — dashOffset must move dashes *from* suction *toward* the returns (reverse a polyline's point order if its dashes march backwards; verify visually in Task 6).
+- [x] **Step 4: Validate** — `bun run typecheck && bun test`. Expected: clean.
+- [x] **Step 5: Commit**
 
 ```bash
 git add frontend/components/scene

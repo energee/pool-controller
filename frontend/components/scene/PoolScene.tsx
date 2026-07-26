@@ -4,6 +4,7 @@ import { Html, Sparkles } from "@react-three/drei";
 
 import type { SceneState } from "../../lib/scene";
 import { Equipment } from "./Equipment";
+import { Pipes } from "./Pipes";
 import { Water } from "./Water";
 
 export function PoolScene({ scene }: { scene: SceneState }) {
@@ -36,6 +37,7 @@ export function PoolScene({ scene }: { scene: SceneState }) {
         flow={scene.spaOn ? scene.flow : 0}
         position={[2.6, 1.02, 2.0]}
       />
+      <Pipes scene={scene} />
       <Equipment scene={scene} />
       {scene.spaOn && scene.flow > 0 ? (
         <Sparkles
