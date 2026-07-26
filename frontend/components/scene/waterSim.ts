@@ -12,7 +12,6 @@ import * as THREE from "three";
 
 const MAX_DROPS = 8;
 const MAX_JETS = 4;
-const JET_OMEGA = 7.5; // rad/s — with k=10.5 rad/wu the train travels ~0.71 wu/s
 
 const SIM_VERT = /* glsl */ `
 varying vec2 vUv;
@@ -37,6 +36,7 @@ uniform vec2 uJetDir[${MAX_JETS}]; // unit direction, plane-local frame
 uniform float uJetAmp;             // velocity forcing amplitude (flow-scaled)
 uniform float uJetLen;             // plume length in world units (flow-scaled)
 uniform float uJetPhase;           // advancing phase, wrapped at 2*PI
+uniform float uJetK;               // wave number, rad per world unit
 uniform vec2 uWorldSize;
 varying vec2 vUv;
 const float PI = 3.141592653589793;
@@ -61,7 +61,7 @@ void main() {
     float env = exp(-lat * lat / (2.0 * sigma * sigma))
               * smoothstep(-0.15, 0.05, s)
               * (1.0 - smoothstep(uJetLen * 0.55, uJetLen, s));
-    info.g += uJetAmp * env * sin(10.5 * s - uJetPhase);
+    info.g += uJetAmp * env * sin(uJetK * s - uJetPhase);
   }
   gl_FragColor = info;
 }
@@ -116,8 +116,6 @@ void main() {
 }
 `;
 
-export const HEIGHT_SCALE = 1.6; // sim height units -> world y, shared with the surface shader
-
 export interface Jet {
   pos: [number, number]; // nozzle in sim UV
   dir: [number, number]; // downstream direction, plane-local frame (normalized internally)
@@ -128,8 +126,13 @@ export interface WaterSimConfig {
   worldSize: [number, number];
   radius: number;
   flow: number; // raw 0..1; smoothed internally
+  heightScale: number; // sim height -> world y; must match the surface shader's
   jets: Jet[]; // pressurized return jets (max 4): sustained wave-train sources
   jetLen: [number, number]; // plume length = base + perFlow * flow, world units
+  jetK: number; // wave number (rad/wu): higher = shorter, choppier waves
+  jetOmega: number; // phase speed (rad/s): train travels at omega/k wu/s
+  jetAmp: number; // velocity forcing amplitude at flow 1
+  damping: [number, number]; // per-step, lerped by flow — lower max = faster decay
   dropRadius: [number, number]; // ambient drops: base + random spread, world units
   rateScale?: number;
 }
@@ -155,7 +158,10 @@ function makeTarget(res: [number, number]): THREE.WebGLRenderTarget {
 }
 
 export function useWaterSim(cfg: WaterSimConfig): WaterSim {
-  const { res, worldSize, radius, jets, jetLen, dropRadius, rateScale = 1 } = cfg;
+  const {
+    res, worldSize, radius, heightScale, jets, jetLen,
+    jetK, jetOmega, jetAmp, damping, dropRadius, rateScale = 1,
+  } = cfg;
   const simRef = React.useRef<THREE.Texture | null>(null);
   const flowRef = React.useRef(0);
   const flowProp = React.useRef(cfg.flow);
@@ -190,6 +196,7 @@ export function useWaterSim(cfg: WaterSimConfig): WaterSim {
       uJetAmp: { value: 0 },
       uJetLen: { value: jetLen[0] },
       uJetPhase: { value: 0 },
+      uJetK: { value: jetK },
       uWorldSize: { value: world },
     });
     const update = mk(UPDATE_FRAG, {
@@ -203,7 +210,7 @@ export function useWaterSim(cfg: WaterSimConfig): WaterSim {
       uPrev: { value: null },
       uDelta: { value: delta },
       uWorldSize: { value: world },
-      uHeightScale: { value: HEIGHT_SCALE },
+      uHeightScale: { value: heightScale },
     });
     const quad = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), drop);
     quad.frustumCulled = false;
@@ -270,14 +277,14 @@ export function useWaterSim(cfg: WaterSimConfig): WaterSim {
     // live jets. Jet phase advances in real time (wrapped — sin is periodic).
     const jetsLive = flow > 0.02 && jets.length > 0;
     if (count > 0 || jetsLive) {
-      phase.current = (phase.current + dt * JET_OMEGA) % (2 * Math.PI);
+      phase.current = (phase.current + dt * jetOmega) % (2 * Math.PI);
       sim.drop.uniforms.uCount.value = count;
-      sim.drop.uniforms.uJetAmp.value = jetsLive ? 0.009 * flow : 0;
+      sim.drop.uniforms.uJetAmp.value = jetsLive ? jetAmp * flow : 0;
       sim.drop.uniforms.uJetLen.value = jetLen[0] + jetLen[1] * flow;
       sim.drop.uniforms.uJetPhase.value = phase.current;
       pass(sim.drop);
     }
-    sim.update.uniforms.uDamping.value = THREE.MathUtils.lerp(0.986, 0.997, flow);
+    sim.update.uniforms.uDamping.value = THREE.MathUtils.lerp(damping[0], damping[1], flow);
     // Fixed-timestep updates (120 steps/s = the tuned 2-per-frame at 60Hz),
     // so wave speed doesn't double on 120Hz displays; cap bounds slow frames.
     stepAcc.current = Math.min(stepAcc.current + dt * 120, 4);

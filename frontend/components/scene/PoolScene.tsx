@@ -138,6 +138,24 @@ export function PoolScene({ scene }: { scene: SceneState }) {
           <torusGeometry args={[1.0, 0.08, 10, 32]} />
           <meshStandardMaterial color="#5d646d" roughness={0.6} />
         </mesh>
+        {/* four inlet nozzles on the wall (matching the sim's jet sites) and
+            the floor-drain exit at the bottom center */}
+        {[1, 3, 5, 7].map((n) => (
+          <group key={n} rotation={[0, (n * Math.PI) / 4, 0]}>
+            <mesh position={[0.85, 0.66, 0]} rotation={[0, 0, Math.PI / 2]}>
+              <cylinderGeometry args={[0.055, 0.055, 0.16, 12]} />
+              <meshStandardMaterial color="#cfd6db" roughness={0.5} />
+            </mesh>
+          </group>
+        ))}
+        <mesh position={[0, 0.486, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+          <circleGeometry args={[0.15, 24]} />
+          <meshStandardMaterial color="#7d949c" roughness={0.7} />
+        </mesh>
+        <mesh position={[0, 0.488, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+          <circleGeometry args={[0.1, 24]} />
+          <meshStandardMaterial color="#3f565e" roughness={0.7} />
+        </mesh>
         <Water
           variant="spa"
           size={[1.9, 1.9]}

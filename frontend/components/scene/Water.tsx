@@ -8,7 +8,7 @@ import * as React from "react";
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 
-import { HEIGHT_SCALE, useWaterSim, type Jet } from "./waterSim";
+import { useWaterSim, type Jet } from "./waterSim";
 
 const SURFACE_VERT = /* glsl */ `
 uniform sampler2D uSim;
@@ -166,8 +166,13 @@ interface Variant {
   floor: boolean;
   alphaRange: [number, number];
   tileSize: number;
+  heightScale: number;
   jets: Jet[];
   jetLen: [number, number];
+  jetK: number;
+  jetOmega: number;
+  jetAmp: number;
+  damping: [number, number];
   dropRadius: [number, number];
   rateScale: number;
 }
@@ -181,11 +186,16 @@ const VARIANTS: Record<"pool" | "spa", Variant> = {
     floor: true,
     alphaRange: [0.42, 0.9],
     tileSize: 0.42,
+    heightScale: 1.6,
     // One pressurized return jet at the pipe inlet on the north edge (sim UV
     // (0.68, 0.05) — see PoolScene's returnPool endpoint), aimed into the pool
     // and slightly west like a real eyeball fitting, driving circulation.
     jets: [{ pos: [0.68, 0.05], dir: [-0.25, 0.95] }],
     jetLen: [0.8, 1.4],
+    jetK: 10.5,
+    jetOmega: 7.5,
+    jetAmp: 0.009,
+    damping: [0.986, 0.997],
     dropRadius: [0.22, 0.18],
     rateScale: 1,
   },
@@ -198,14 +208,22 @@ const VARIANTS: Record<"pool" | "spa", Variant> = {
     floor: true,
     alphaRange: [0.55, 0.95],
     tileSize: 0.28,
-    // Four perimeter jets aimed inward-tangential — the classic spa swirl.
+    // Small amplitude + short fast waves + strong decay: choppy spa boil, not
+    // the pool's long swells (which read as jelly at tub scale).
+    heightScale: 0.8,
+    // Four wall inlets aimed inward-tangential (matching the nozzle fittings
+    // in PoolScene) — the classic spa swirl. Exit is the floor drain.
     jets: [
-      { pos: [0.712, 0.712], dir: [-0.99, 0.141] },
-      { pos: [0.288, 0.712], dir: [-0.141, -0.99] },
-      { pos: [0.288, 0.288], dir: [0.99, -0.141] },
-      { pos: [0.712, 0.288], dir: [0.141, 0.99] },
+      { pos: [0.779, 0.779], dir: [-0.99, 0.141] },
+      { pos: [0.221, 0.779], dir: [-0.141, -0.99] },
+      { pos: [0.221, 0.221], dir: [0.99, -0.141] },
+      { pos: [0.779, 0.221], dir: [0.141, 0.99] },
     ],
-    jetLen: [0.3, 0.4],
+    jetLen: [0.22, 0.28],
+    jetK: 22,
+    jetOmega: 12,
+    jetAmp: 0.005,
+    damping: [0.986, 0.992],
     dropRadius: [0.12, 0.08],
     rateScale: 0.5,
   },
@@ -234,8 +252,13 @@ export function Water({
     worldSize: size,
     radius,
     flow,
+    heightScale: v.heightScale,
     jets: v.jets,
     jetLen: v.jetLen,
+    jetK: v.jetK,
+    jetOmega: v.jetOmega,
+    jetAmp: v.jetAmp,
+    damping: v.damping,
     dropRadius: v.dropRadius,
     rateScale: v.rateScale,
   });
@@ -249,7 +272,7 @@ export function Water({
         uSim: { value: null as THREE.Texture | null },
         uHalf: { value: half },
         uRadius: { value: radius },
-        uHeightScale: { value: HEIGHT_SCALE },
+        uHeightScale: { value: v.heightScale },
         uTime: { value: 0 },
         uFlow: { value: 0 },
         uShallow: { value: new THREE.Color(shallow) },
