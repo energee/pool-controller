@@ -16,11 +16,14 @@ export async function getState(): Promise<State> {
 // stacking a column of them when the user clicks several controls in a row.
 const VERDICT = "verdict";
 
-// Issue a command and surface the server's verdict as a toast:
-//   confirmed       -> verified applied (brief success)
+// Issue a command and surface the server's verdict as a toast. Success is
+// deliberately silent: the control that was just touched already shows the
+// round trip (pending -> settled from the next poll), so a toast in the far
+// corner of the screen only restates it. Callers that want more than the
+// warning/error toasts read the returned Verdict and render it in place -- see
+// CircuitsCard, which marks the tile the controller never confirmed.
+//   confirmed       -> silent
 //   accepted (202)  -> sent, not confirmed by controller (warning)
-//   sent            -> best-effort, nothing to verify; silent, the dashboard
-//                      state is the feedback
 //   !ok / throw     -> error
 export async function command(
   path: string,
@@ -36,8 +39,6 @@ export async function command(
     }
     if (!r.ok)
       toast.error("Failed — HTTP " + r.status, { id: VERDICT, description: path });
-    else if (body.confirmed)
-      toast.success("Applied", { id: VERDICT, duration: 1500 });
     else if (r.status === 202 || body.accepted)
       toast.warning("Sent — not confirmed by controller", { id: VERDICT });
     return body;
