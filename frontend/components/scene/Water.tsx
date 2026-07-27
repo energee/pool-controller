@@ -171,9 +171,17 @@ const POOL = {
   alphaRange: [0.42, 0.9] as [number, number],
   heightScale: 1.6,
   jetLen: [1.0, 1.8] as [number, number],
-  jetK: 13,
-  jetOmega: 7.5,
-  jetAmp: 0.015,
+  // Phase-matched to the sim's own wave speed: the update's `v += (avg-h)*2`
+  // gives c = dx/(sqrt(2)*dt) = (14/256)*120/sqrt(2) ~= 4.6 wu/s, so the source
+  // must travel at omega/k ~= 4.6 or it just pumps a near-standing pattern that
+  // cancels its own radiation. k = 3.9 puts the wavelength at 2pi/3.9 ~= 1.6 wu
+  // (~29 texels) — long enough to survive numerical damping and to read as
+  // swell rather than speckle at this camera distance.
+  jetK: 3.9,
+  jetOmega: 18,
+  // Phase-matching made the source resonant, so the same forcing that used to
+  // barely ripple now builds surf — amplitude drops by roughly that same factor.
+  jetAmp: 0.007,
   damping: [0.986, 0.997] as [number, number],
   dropRadius: [0.22, 0.18] as [number, number],
 };

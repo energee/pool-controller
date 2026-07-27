@@ -259,12 +259,10 @@ export function useWaterSim(cfg: WaterSimConfig): WaterSim {
     const flow = (flowRef.current +=
       (flowProp.current - flowRef.current) * Math.min(dt * 2, 1));
 
-    // Ambient drops carry the *whole-surface* chop; the jet only ever energizes
-    // its own ~2wu plume, and damping kills that wave train (0.36x/s at half
-    // flow) long before it crosses a 14wu pool, so a running pool driven by the
-    // jet alone reads dead flat everywhere else. Rate and strength therefore
-    // ramp hard with flow: a rare ring when still, a continuous stipple running.
-    const rate = flow < 0.02 ? 0.15 : 4 + 26 * flow;
+    // Ambient drops are a light garnish only — the phase-matched jet (see
+    // POOL.jetK/jetOmega in Water.tsx) carries the running pool's agitation.
+    // Driving the whole surface from here instead just makes it look like rain.
+    const rate = flow < 0.02 ? 0.15 : 0.6 + 2.5 * flow;
     acc.current += dt * rate;
     let count = 0;
     const drops = sim.drop.uniforms.uDrops.value as THREE.Vector4[];
@@ -273,7 +271,7 @@ export function useWaterSim(cfg: WaterSimConfig): WaterSim {
       const [u, v] = randomSite();
       const r = dropRadius[0] + dropRadius[1] * Math.random();
       const sign = Math.random() < 0.65 ? -1 : 1; // impacts read better than bulges
-      drops[count].set(u, v, r, sign * (0.004 + 0.030 * flow));
+      drops[count].set(u, v, r, sign * (0.004 + 0.008 * flow));
       count++;
     }
 
