@@ -81,6 +81,28 @@ Frontend work is the same loop plus a rebuild: edit `frontend/`, run
 `bun run build`, reload the page (the server ships the committed
 `easytouch/static/` bundle, so nothing is served from `frontend/` directly).
 
+### Frontend work against a live controller (dev proxy)
+
+If an easytouch server is already running on the LAN, it owns the RS-485
+adapter — you cannot also export that device with `socat`, and you don't need
+to. `tools/dev-proxy.ts` serves your **local** build over that server's **live**
+data: `/` and `/static/*` come from `easytouch/static/`, everything else
+(`/state`, and every command endpoint) is forwarded upstream.
+
+```bash
+bun run build
+bun tools/dev-proxy.ts --upstream http://pool.local --port 8091
+# then open http://localhost:8091/ — local UI, real pool
+```
+
+`--upstream` defaults to `http://pool.local` and also reads `EASYTOUCH_UPSTREAM`.
+No CORS is involved: the browser only talks to the proxy, and
+`frontend/lib/api.ts` uses same-origin relative fetches. `--check` runs the path
+routing self-test and exits.
+
+> **Commands hit the real pool.** Unlike the mock bus, a click in this dashboard
+> actually switches circuits and set-points.
+
 ## Run on a Raspberry Pi (systemd)
 
 Deploy the dashboard on a Pi wired straight to the RS-485 bus. Only Python
