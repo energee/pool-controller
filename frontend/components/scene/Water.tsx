@@ -9,7 +9,7 @@ import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 
 import { LINER_GLSL, POOL_SDF_GLSL } from "./glsl";
-import { FT, JET, SUN } from "./layout";
+import { FT, JET, SUN, waterPlane } from "./layout";
 import { useWaterSim, type Jet } from "./waterSim";
 
 const SURFACE_VERT = /* glsl */ `
@@ -191,10 +191,9 @@ export function Water({
   position: [number, number, number]; // rounded-rect center at the waterline
   bay?: [number, number]; // stair bay on the -x side: [depth out, width]
 }) {
-  const bayD = bay?.[0] ?? 0;
   // The plane widens westward to hold the bay's water; SDF unions the shapes.
-  const plane: [number, number] = [size[0] + bayD, size[1]];
-  const rrOff: [number, number] = [bayD / 2, 0];
+  const { plane, offset } = waterPlane(size, bay);
+  const rrOff: [number, number] = [offset, 0];
   const bayC: [number, number] = [-size[0] / 2, 0];
   const bayH: [number, number] = bay ? [bay[0] / 2, bay[1] / 2] : [0, 0];
   // The single pressurized return jet, converted from its world offset to sim
@@ -267,9 +266,15 @@ export function Water({
   });
 
   return (
+    // `position` places the *rounded rect's* center, but the SDF, the sim, and
+    // the jet UV all work in the widened plane's frame, whose origin sits rrOff
+    // (bayD/2) west of that center. Both planes therefore carry the same -rrOff
+    // shift and the same plane[] extent, or they clip the bay off the west end:
+    // a plane laid out on the rr center alone stops half a bay short of the
+    // stairs, and one sized to size[] never covers the bay at all.
     <group position={position}>
-      <mesh rotation={[-Math.PI / 2, 0, 0]}>
-        <planeGeometry args={[size[0], size[1], 48, 1]} />
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[-rrOff[0], 0, 0]}>
+        <planeGeometry args={[plane[0], plane[1], 48, 1]} />
         <shaderMaterial
           ref={floor}
           uniforms={uniforms.floor}
@@ -277,7 +282,7 @@ export function Water({
           fragmentShader={FLOOR_FRAG}
         />
       </mesh>
-      <mesh rotation={[-Math.PI / 2, 0, 0]}>
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[-rrOff[0], 0, 0]}>
         <planeGeometry args={[plane[0], plane[1], ...POOL.segments]} />
         <shaderMaterial
           ref={surface}

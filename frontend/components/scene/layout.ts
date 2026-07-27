@@ -26,6 +26,20 @@ export const BAY: [number, number] = [1.4, 3.4];
 /** World x of the bay's outer (west) face. */
 export const BAY_X = POOL_POS[0] - POOL_SIZE[0] / 2 - BAY[0];
 
+/** Footprint of the water surface and floor planes: the rounded rect widened
+ *  west to swallow the stair bay. Both shaders clip to the pool by SDF in
+ *  plane-local space, so the plane's center sits `offset` west of the rounded
+ *  rect's center -- meshes must carry that shift or they are laid out in the
+ *  wrong frame. That mistake is invisible in the code and obvious on screen:
+ *  the water and floor stop short of the stairs. */
+export function waterPlane(
+  size: [number, number],
+  bay?: [number, number]
+): { plane: [number, number]; offset: number } {
+  const depth = bay?.[0] ?? 0;
+  return { plane: [size[0] + depth, size[1]], offset: depth / 2 };
+}
+
 /** Return-jet nozzle, as an offset from the pool's centre: near the front-left
  *  corner, just inside the front wall. Water converts this to sim UV and Pipes
  *  runs its buried return to the same spot. */
