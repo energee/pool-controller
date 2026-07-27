@@ -20,6 +20,7 @@ export interface Status {
 export interface Heat {
   pool_temp?: number | null;
   spa_temp?: number | null;
+  air_temp?: number | null;
   pool_setpoint?: number;
   spa_setpoint?: number;
   heat_mode_raw?: number;

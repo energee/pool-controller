@@ -1,9 +1,10 @@
 // Shared presentational primitives ported from the former dom.ts string builders
 // (row/tile/stat/card). These are pure layout — no data fetching here.
 import * as React from "react";
+import { Minus, Plus } from "lucide-react";
 
 import { Badge } from "./ui/badge";
-import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
+import { Button } from "./ui/button";
 import { cn } from "../lib/utils";
 
 // A labelled key/value line with a hairline top border.
@@ -15,7 +16,7 @@ export function Row({
   children: React.ReactNode;
 }) {
   return (
-    <div className="flex justify-between gap-2.5 py-[7px] border-t border-border first:border-t-0">
+    <div className="flex justify-between gap-2.5 py-1">
       <span className="text-muted-foreground">{k}</span>
       <span className="text-foreground text-right">{children}</span>
     </div>
@@ -31,10 +32,65 @@ export function Tile({
   children: React.ReactNode;
 }) {
   return (
-    <div className="rounded-md border border-border bg-popover px-3 py-2.5">
+    <div className="rounded-md bg-popover px-3 py-2.5">
       <div className="text-[11px] text-muted-foreground">{k}</div>
       <div className="text-xl font-medium mt-0.5 tracking-tight">
         {children}
+      </div>
+    </div>
+  );
+}
+
+// The uppercase muted title shared by DashCard's heading and Disclosure's
+// summary. Not exported: cards get it through those two, never by hand.
+const SECTION_TITLE =
+  "text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground";
+
+// The label/value pair of a big stat readout (setpoints, salt, output), shared
+// by Stepper and by cards that show a stat without steppers.
+export const STAT_LABEL =
+  "text-[11px] text-muted-foreground tracking-[0.04em] uppercase";
+export const STAT_VALUE = "text-[22px] font-medium tracking-tight";
+
+// A labelled big-value readout with −/+ stepper buttons — the app's shared
+// "adjust a number" control (heat setpoints, chlorinator output). `value` is a
+// ReactNode so callers render their own units and pending treatment; the
+// buttons report direction only and callers apply their own step size.
+export function Stepper({
+  label,
+  aria,
+  value,
+  onNudge,
+}: {
+  label: React.ReactNode;
+  /** aria-label base for the buttons: "<aria> down" / "<aria> up". */
+  aria: string;
+  value: React.ReactNode;
+  onNudge: (direction: 1 | -1) => void;
+}) {
+  return (
+    <div className="flex items-center justify-between gap-2">
+      <div>
+        <div className={STAT_LABEL}>{label}</div>
+        <div className={STAT_VALUE}>{value}</div>
+      </div>
+      <div className="flex items-center gap-1.5">
+        <Button
+          variant="outline"
+          className="h-9 w-11 px-0"
+          aria-label={aria + " down"}
+          onClick={() => onNudge(-1)}
+        >
+          <Minus />
+        </Button>
+        <Button
+          variant="outline"
+          className="h-9 w-11 px-0"
+          aria-label={aria + " up"}
+          onClick={() => onNudge(1)}
+        >
+          <Plus />
+        </Button>
       </div>
     </div>
   );
@@ -49,28 +105,66 @@ export function ExperimentalBadge() {
   );
 }
 
-// A dashboard card with the uppercase muted title and optional experimental tag.
-export function DashCard({
+// A native-<details> disclosure with the shared section-title summary (closed by
+// default). Open/closed state lives in the DOM, so it survives the 3s re-render —
+// React never touches the attribute after mount. Used directly (Diagnostics, Raw
+// frames, Pump Speed) and by `DashCard collapsible`.
+export function Disclosure({
   title,
   experimental,
   className,
   children,
 }: {
-  title: string;
+  title: React.ReactNode;
   experimental?: boolean;
   className?: string;
   children: React.ReactNode;
 }) {
   return (
-    <Card className={cn("transition-colors hover:border-border", className)}>
-      <CardHeader>
-        <CardTitle>
-          {title}
-          {experimental ? <ExperimentalBadge /> : null}
-        </CardTitle>
-      </CardHeader>
-      <CardContent>{children}</CardContent>
-    </Card>
+    <details className={className}>
+      <summary
+        className={cn(SECTION_TITLE, "cursor-pointer py-1 list-none hover:text-foreground")}
+      >
+        {title}
+        {experimental ? <ExperimentalBadge /> : null} ▸
+      </summary>
+      {children}
+    </details>
+  );
+}
+
+// A dashboard card with the uppercase muted title and optional experimental tag.
+// `collapsible` renders it as a `Disclosure` instead of a titled section.
+export function DashCard({
+  title,
+  experimental,
+  collapsible,
+  className,
+  children,
+}: {
+  title: string;
+  experimental?: boolean;
+  collapsible?: boolean;
+  className?: string;
+  children: React.ReactNode;
+}) {
+  // Flat section, not a boxed card: the uppercase title is the only separator.
+  // Inner controls (tiles, switch rows, inputs) carry their own affordances.
+  if (collapsible) {
+    return (
+      <Disclosure title={title} experimental={experimental} className={className}>
+        {children}
+      </Disclosure>
+    );
+  }
+  return (
+    <section className={className}>
+      <h3 className={cn(SECTION_TITLE, "mb-2")}>
+        {title}
+        {experimental ? <ExperimentalBadge /> : null}
+      </h3>
+      {children}
+    </section>
   );
 }
 
@@ -83,7 +177,7 @@ export function Grid2({
   children: React.ReactNode;
 }) {
   return (
-    <div className={cn("grid grid-cols-2 gap-2.5", className)}>{children}</div>
+    <div className={cn("grid grid-cols-2 gap-2", className)}>{children}</div>
   );
 }
 

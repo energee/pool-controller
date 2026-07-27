@@ -59,11 +59,35 @@ python -m easytouch --port socket://192.168.4.70:4000 status
 
 `--port` accepts `socket://HOST:PORT` (raw TCP) or `tcp://HOST:PORT` (an alias).
 
+### Development without hardware (mock bus)
+
+`tools/mock_bus.py` is a fake controller that speaks the same wire protocol over
+TCP — no USB adapter, no PTY, no `socat`:
+
+```bash
+python tools/mock_bus.py &                                    # 127.0.0.1:4000
+python -m easytouch --port socket://127.0.0.1:4000 serve --http-port 8080
+# then open http://localhost:8080/
+```
+
+It broadcasts controller status, date/time, pump and IntelliChlor frames, answers
+the heat / schedule / version requests `BusMonitor` makes, and applies writes
+(circuits, heat set-points, schedules, clock, chlorinator output) to its in-memory
+state — so dashboard controls confirm exactly as they do against real hardware.
+`--host`/`--port` move the listener; `--selftest` decodes every generated frame
+through the real decoders and exits.
+
+Frontend work is the same loop plus a rebuild: edit `frontend/`, run
+`bun run build`, reload the page (the server ships the committed
+`easytouch/static/` bundle, so nothing is served from `frontend/` directly).
+
 ## Run on a Raspberry Pi (systemd)
 
 Deploy the dashboard on a Pi wired straight to the RS-485 bus. Only Python
 ≥3.9 and `pyserial` are needed at runtime — the frontend is served from the
-committed `easytouch/static/` build, so **no Node/Bun on the Pi**.
+committed `easytouch/static/` build, so **this path needs no Node/Bun on the
+Pi**. (Running the TypeScript stack instead does need Node — see [Swapping the
+Pi to the TypeScript stack](#swapping-the-pi-to-the-typescript-stack).)
 
 ```bash
 # 1. Get the code and install (creates .venv with pyserial)
@@ -97,6 +121,97 @@ journalctl -u easytouch -f     # live logs
 ```
 
 Then open `http://<pi-ip>:8080/` from any device on the LAN.
+
+### Swapping the Pi to the TypeScript stack
+
+Two units ship in `deploy/`, one per stack. They are mutually exclusive:
+
+| Unit | Stack | Runs |
+| --- | --- | --- |
+| `easytouch.service` | Python (default) | `.venv/bin/python -m easytouch … serve` |
+| `easytouch-ts.service` | TypeScript | `/usr/bin/node dist/easytouch.js … serve` |
+
+**Only one may own the serial device.** Both units declare `Conflicts=` on each
+other, so systemd stops one before starting the other. That enforcement matters,
+because nothing else provides it: neither stack opens the port exclusively, so
+Linux will hand `/dev/ttyUSB0` to both processes and they will split the incoming
+byte stream — both decoding garbage, with no error anywhere. `Conflicts=` does
+not cover a server you launch by hand, so stop the service first when you do.
+
+> The TypeScript device transport (`stty` + `node:fs`) has **not** been verified
+> against real hardware yet. Work through the checks below before cutting over,
+> and expect to roll back.
+
+Everything except the serial transport itself can be checked with the pool still
+running, so do that first and keep the downtime window to the one thing that
+needs it.
+
+```bash
+# 1. Dev machine: build the bundle and smoke-test it against the mock bus.
+bun run build:server
+python tools/mock_bus.py --port 4000 &
+node dist/easytouch.js --port socket://127.0.0.1:4000 serve --http-port 8081
+```
+
+Against the mock on `:8081` — none of this needs the Pi or the real bus, and it
+covers every failure mode except the device transport:
+
+- `curl -sI localhost:8081/` and `.../static/app.js` both return 200. The bundle
+  resolves the dashboard relative to the script, so a bad layout serves the API
+  correctly while 404-ing its own JavaScript.
+- `curl -s localhost:8081/heat` populates — proves request/response, not just
+  passive broadcasts.
+- `curl -s localhost:8081/schedules` fills in after a paced scan (~13 s).
+- A write confirms: `curl -s localhost:8081/circuit/aux1/on`, then `/circuit/aux1/off`.
+
+```bash
+# 2. Ship it, and stage everything on the Pi that does not need the port.
+git add dist/easytouch.js && git commit -m "Build: server bundle" && git push
+#    On the Pi:
+cd ~/pool && git pull
+apt-cache policy nodejs        # Bookworm ships 18.x; use NodeSource if < 20
+node --version                 # must be >= 20
+sudo cp deploy/easytouch-ts.service /etc/systemd/system/
+sudoedit /etc/systemd/system/easytouch-ts.service   # User=, paths, node path, --port
+sudo systemctl daemon-reload   # installing a unit is inert until enabled
+
+# 3. Downtime window — only the real serial transport is still unproven.
+curl -s localhost:8080/state > /tmp/py-state.json   # capture Python's view first
+sudo systemctl stop easytouch
+node dist/easytouch.js --port /dev/ttyUSB0 serve --http-port 8081
+```
+
+- `curl -s localhost:8081/state` decodes real values: clock, temps, pump, salt.
+- Diff it against the Python capture: `curl -s localhost:8081/state > /tmp/ts-state.json`
+  and compare the two with sorted keys. Live readings will differ; the shape and
+  key set should not.
+
+```bash
+# 4. Ctrl-C. If ANY check failed, restore Python and stop here:
+sudo systemctl start easytouch
+
+# 5. Only if everything passed, cut over. Conflicts= stops Python for you:
+sudo systemctl disable easytouch
+sudo systemctl enable --now easytouch-ts
+systemctl status easytouch-ts   # active (running)
+journalctl -u easytouch-ts -f   # live logs
+```
+
+While iterating on a transport fix, `scp dist/easytouch.js pi:~/pool/dist/`
+instead of rebuilding and pushing a commit per attempt; commit the bundle once it
+works.
+
+Rolling back, at any time — the Python unit stays installed and unmodified, so
+this is always available:
+
+```bash
+sudo systemctl disable easytouch-ts
+sudo systemctl enable --now easytouch
+```
+
+A dead or mis-detected transport shows up as `"connected": false` with an error
+string in `GET /state` within 30 s, rather than as a silent hang: the bus monitor
+treats 30 s of zero traffic as a dead link and forces a reconnect.
 
 ## CLI
 
@@ -259,14 +374,30 @@ python -m easytouch --port socket://192.168.4.70:4000 serve --http-host 0.0.0.0 
 bundled by Bun into `easytouch/static/` (`app.js` + `index.html`/`style.css`);
 the committed build output is what the server ships, so **no Node/Bun is needed
 at runtime** — only after editing `frontend/` (run `bun run build`). It polls
-`GET /state` every ~3s and renders a card per section — controller status, heat/setpoints, **salt /
-chlorinator**, circuits, **IntelliBrite lights**, pumps, schedules, IntelliChem
-(when present), and the raw/undecoded frames. Controls are editable inline:
-circuit on/off toggles, heat setpoints + modes, chlorinator output %, controller
-clock, IntelliBrite lights, an experimental pump-RPM control, and schedule slots
-(schedule writes — and the light / pump / IntelliChem cards — are unverified on
-this controller, so they're labelled *experimental*). Re-rendering pauses while a control is focused or was
-just changed, so inputs never jump under you. The JSON endpoint index moved to
+`GET /state` every ~3s (no manual refresh button — the header pill shows
+freshness). There is no separate summary strip: the controls are the readings.
+A freeze-protect / service-mode banner appears only when active; below it, one
+flat titled section per control surface (no card chrome — inner tiles and
+inputs carry their own affordances) — equipment (a full-width two-row band of
+tap tiles, Pool/Spa first with a pending "confirming…" state; every
+circuit is the same tap tile), a thermostat-style heat section (−/+ steppers that
+auto-apply after a pause, segmented mode control — no Apply button), **salt /
+chlorinator** (salt ppm with a color-coded low/OK/high verdict against the
+IntelliChlor 3000–4500 ppm range; output % on the same −/+ auto-apply
+steppers as heat), schedules (readable rows; "+ Add schedule" picks a free
+controller slot automatically), and **pumps & clock** — a full-width band with
+pump stats, the controller clock (inline sync icon), and the experimental Pump
+Speed disclosure side by side; the **IntelliBrite lights** accordion sits
+beneath it (native `<details>`, closed by default). The
+unverified reverse-engineering surfaces
+(IntelliChem, valves, circuit-name config — shown only when their data exists —
+plus the raw/undecoded frames) are collapsed behind a **Diagnostics**
+disclosure. Controls are editable inline; schedule writes — and the light /
+pump / IntelliChem cards — are unverified on this controller, so they're
+labelled *experimental*. Re-rendering pauses while a control is focused or was
+just changed, so inputs never jump under you. If the bus goes silent for 30s
+the server declares it dead, reconnects, and the pill turns red instead of
+sitting on stale data. The JSON endpoint index moved to
 `GET /api`; the page is a pure client of the data routes below.
 
 ### Salt / chlorinator
@@ -370,7 +501,9 @@ notes.
 | `easytouch/static/`       | Built dashboard bundle (`app.js` + `index.html`/`style.css`), committed |
 | `frontend/`               | Dashboard source (TypeScript modules + CSS/HTML); `bun run build` |
 | `easytouch/cli.py`        | `python -m easytouch` command-line interface        |
+| `tools/mock_bus.py`       | Fake controller over TCP for hardware-free development |
 | `tests/`                  | Unit tests against real captured frames             |
+| `server/`                 | In-progress TypeScript port of the Python stack (see below) |
 
 ## Tests
 
@@ -381,6 +514,41 @@ pytest
 
 The tests decode real frames captured from the bus, so they guard against
 protocol regressions without needing hardware.
+
+## TypeScript port (in progress)
+
+`server/` is an in-progress port of the Python stack to TypeScript with **zero
+runtime dependencies**, so the whole thing can eventually run on `node` alone.
+The Python package under `easytouch/` is still what the Pi runs; the port is not
+deployed yet.
+
+The API and CLI now work end-to-end. Run it exactly like the Python one:
+
+```bash
+bun server/cli.ts --port socket://127.0.0.1:4000 serve --http-port 8080
+bun server/cli.ts --port /dev/ttyUSB0 status
+bun run test          # server + frontend unit tests
+bun run typecheck
+```
+
+Ported: protocol vocabulary, framer, decoders, IntelliChlor framer, transport
+(`node:net` for `socket://`, `stty` + `node:fs` for a device path — no native
+serial module), the single-owner `BusMonitor`, the HTTP JSON API (same routes,
+same JSON, same 200/202/400/503 semantics) and the CLI.
+
+Unlike the Python CLI, the TypeScript write commands drive a `BusMonitor` and
+confirm against its cache — the same path the HTTP API uses — rather than a
+second set of blocking request/confirm loops.
+
+The tests reuse the same captured frames as the Python suite, and both stacks are
+verified against `tools/mock_bus.py`; `GET /state` was compared key-for-key
+between the two servers.
+
+Still to come: the bundled `dist/easytouch.js` and hardware verification — the
+device (`stty`) transport has no coverage until it runs against a real adapter.
+The systemd unit (`deploy/easytouch-ts.service`) and the cutover/rollback
+procedure are written up under [Swapping the Pi to the TypeScript
+stack](#swapping-the-pi-to-the-typescript-stack).
 
 ## Safety
 

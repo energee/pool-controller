@@ -4,5 +4,8 @@ __pycache__/
 *.egg-info/
 .pytest_cache/
 build/
-dist/
+# dist/* not dist/: a negation cannot re-include a file under an excluded
+# directory. The server bundle is committed build output, like easytouch/static/.
+dist/*
+!dist/easytouch.js
 node_modules/

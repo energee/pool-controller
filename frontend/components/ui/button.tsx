@@ -13,8 +13,11 @@ const buttonVariants = cva(
         default: "bg-primary text-primary-foreground hover:bg-primary/90",
         destructive:
           "bg-destructive text-destructive-foreground hover:bg-destructive/90",
+        // Borderless flat theme: "outline" is a filled raised surface (subtle top
+        // sheen + hover lift + pressed state), not a bordered ghost — every
+        // secondary action in the app picks this up without touching call sites.
         outline:
-          "border border-input bg-background hover:bg-accent hover:text-accent-foreground",
+          "bg-accent text-foreground shadow-[inset_0_1px_0_rgba(255,255,255,0.05)] hover:bg-[var(--accent-hover)] active:bg-[var(--accent-active)]",
         secondary:
           "bg-secondary text-secondary-foreground hover:bg-secondary/80",
         ghost: "hover:bg-accent hover:text-accent-foreground",

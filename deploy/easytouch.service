@@ -6,6 +6,8 @@
 # Adjust User=, the two /home/pi/pool paths, and --port to match your Pi.
 [Unit]
 Description=easytouch pool dashboard (serial bus + HTTP API)
+# Only one stack may own the serial device; see the note in easytouch-ts.service.
+Conflicts=easytouch-ts.service
 After=network-online.target
 Wants=network-online.target
 
@@ -15,7 +17,9 @@ User=pi
 # Grants serial-port access without editing the login user's groups.
 SupplementaryGroups=dialout
 WorkingDirectory=/home/pi/pool
-ExecStart=/home/pi/pool/.venv/bin/python -m easytouch --port /dev/serial0 serve --http-port 8080
+# USB RS-485 adapter. If the ttyUSB number ever drifts (multiple USB serial
+# devices), use the stable /dev/serial/by-id/usb-...  symlink instead.
+ExecStart=/home/pi/pool/.venv/bin/python -m easytouch --port /dev/ttyUSB0 serve --http-port 8080
 Restart=on-failure
 RestartSec=3
 
