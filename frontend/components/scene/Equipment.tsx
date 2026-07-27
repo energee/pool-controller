@@ -6,6 +6,7 @@ import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 
 import type { SceneState } from "../../lib/scene";
+import { PAD } from "./layout";
 
 type Unit = "pump" | "filter" | "heater" | "chlorinator";
 
@@ -25,31 +26,26 @@ export function Equipment({ scene }: { scene: SceneState }) {
     if (impeller.current && scene.flow > 0) {
       impeller.current.rotation.y += dt * (2 + 10 * scene.flow);
     }
-    if (lcdMaterial.current) {
-      lcdMaterial.current.emissiveIntensity = THREE.MathUtils.lerp(
-        lcdMaterial.current.emissiveIntensity,
-        scene.flow > 0 ? 1.2 : 0,
-        Math.min(dt * 4, 1),
-      );
-    }
-    if (heaterMaterial.current) {
-      heaterMaterial.current.emissiveIntensity = THREE.MathUtils.lerp(
-        heaterMaterial.current.emissiveIntensity,
-        scene.heaterOn ? 0.3 : 0,
-        Math.min(dt * 4, 1),
-      );
-    }
-    if (chlorMaterial.current) {
-      const target =
-        scene.chlorPct > 0 && scene.flow > 0
-          ? 0.2 + 0.7 * (scene.chlorPct / 100)
-          : 0;
-      chlorMaterial.current.emissiveIntensity = THREE.MathUtils.lerp(
-        chlorMaterial.current.emissiveIntensity,
+    // Every glow eases toward its target at the same rate.
+    const glow = (
+      ref: React.RefObject<THREE.MeshStandardMaterial | null>,
+      target: number,
+    ) => {
+      if (!ref.current) return;
+      ref.current.emissiveIntensity = THREE.MathUtils.lerp(
+        ref.current.emissiveIntensity,
         target,
         Math.min(dt * 4, 1),
       );
-    }
+    };
+    glow(lcdMaterial, scene.flow > 0 ? 1.2 : 0);
+    glow(heaterMaterial, scene.heaterOn ? 0.3 : 0);
+    glow(
+      chlorMaterial,
+      scene.chlorPct > 0 && scene.flow > 0
+        ? 0.2 + 0.7 * (scene.chlorPct / 100)
+        : 0,
+    );
   });
 
   const pumpStats = [
@@ -75,7 +71,7 @@ export function Equipment({ scene }: { scene: SceneState }) {
           when running) + volute, white PVC suction/discharge stubs, finned
           motor, and the VS drive box whose LCD lights with flow. Suction
           enters from the west (-x), the motor points east toward the pad. */}
-      <group position={[6.3, 0, 3.5]} rotation={[0, Math.PI / 2, 0]} {...hover("pump")}>
+      <group position={[PAD.pump[0], 0, PAD.pump[1]]} rotation={[0, Math.PI / 2, 0]} {...hover("pump")}>
         <mesh position={[0, 0.05, 0]}>
           <boxGeometry args={[0.88, 0.07, 0.34]} />
           <meshStandardMaterial color="#cfc7b2" roughness={0.85} />
@@ -163,7 +159,7 @@ export function Equipment({ scene }: { scene: SceneState }) {
       {/* Pentair Clean & Clear Plus cartridge filter: tall almond tank with a
           domed lid, black band clamp at the seam, pressure gauge on top, and
           two black inlet/outlet unions facing the pump (the pipes plug in). */}
-      <group position={[6.3, 0, 2.4]} rotation={[0, Math.PI, 0]} {...hover("filter")}>
+      <group position={[PAD.filter[0], 0, PAD.filter[1]]} rotation={[0, Math.PI, 0]} {...hover("filter")}>
         <mesh position={[0, 0.07, 0]}>
           <cylinderGeometry args={[0.16, 0.21, 0.14, 20]} />
           <meshStandardMaterial color="#ded5bf" roughness={0.8} />
@@ -215,7 +211,7 @@ export function Equipment({ scene }: { scene: SceneState }) {
       {/* Pentair MasterTemp 400: almond cube with a rounded lid, charcoal
           front panel (glows warm while firing), side louvers, black exhaust
           vent at the top corner, and foot pads. */}
-      <group position={[6.3, 0, 1.4]} rotation={[0, Math.PI / 2, 0]} {...hover("heater")}>
+      <group position={[PAD.heater[0], 0, PAD.heater[1]]} rotation={[0, Math.PI / 2, 0]} {...hover("heater")}>
         {[-0.18, 0.18].map((z) => (
           <mesh key={z} position={[0, 0.03, z]}>
             <boxGeometry args={[0.56, 0.06, 0.12]} />
@@ -276,7 +272,7 @@ export function Equipment({ scene }: { scene: SceneState }) {
       {/* Pentair IntelliChlor IC40: white ribbed inline cell with a tan label
           panel and black union nuts joining the pipe at both ends; the body
           glows teal while generating. */}
-      <group position={[5.55, 0, 1.35]} rotation={[0, -Math.PI / 2, 0]} {...hover("chlorinator")}>
+      <group position={[PAD.cell[0], 0, PAD.cell[1]]} rotation={[0, -Math.PI / 2, 0]} {...hover("chlorinator")}>
         <mesh position={[0, 0.22, 0]}>
           <boxGeometry args={[0.44, 0.2, 0.18]} />
           <meshStandardMaterial

@@ -7,6 +7,7 @@ import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 
 import type { SceneState } from "../../lib/scene";
+import { PAD } from "./layout";
 
 type Point = [number, number, number];
 
@@ -52,6 +53,9 @@ function PipeRun({
     t.repeat.set(length / 0.7, 1); // one dash+gap every ~0.7 world units
     return t;
   }, [length, hot]);
+  // hot/cold swaps rebuild the texture — release the old one, or a dashboard
+  // left open leaks a GL texture per heater cycle.
+  React.useEffect(() => () => texture.dispose(), [texture]);
 
   useFrame((_, dt) => {
     if (stripes.current?.map) stripes.current.map.offset.x -= dt * 2.5 * flow;
@@ -60,7 +64,7 @@ function PipeRun({
   return (
     <group>
       <mesh renderOrder={ghost ? 5 : 0}>
-        <tubeGeometry args={[curve, 48, 0.06, 10, false]} />
+        <tubeGeometry args={[curve, 24, 0.06, 6, false]} />
         {ghost ? (
           <meshBasicMaterial
             color={hot ? "#c23327" : "#9aa2ac"}
@@ -74,7 +78,7 @@ function PipeRun({
         )}
       </mesh>
       <mesh visible={active && flow > 0} renderOrder={ghost ? 6 : 0}>
-        <tubeGeometry args={[curve, 48, 0.09, 10, false]} />
+        <tubeGeometry args={[curve, 24, 0.09, 6, false]} />
         <meshBasicMaterial
           ref={stripes}
           map={texture}
@@ -160,26 +164,26 @@ const returnPool: Point[] = [
 ];
 
 export function Pipes({ scene }: { scene: SceneState }) {
+  // Every run carries pool flow; only ghost/hot vary.
+  const run = { active: scene.poolOn, flow: scene.flow };
   return (
     <group>
-      <PipeRun points={suctionPool} active={scene.poolOn} flow={scene.flow} />
+      <PipeRun points={suctionPool} {...run} />
       <PipeRun
         points={undergroundSuction}
-        active={scene.poolOn}
-        flow={scene.flow}
+        {...run}
         ghost
       />
       <PipeRun
         points={undergroundReturn}
-        active={scene.poolOn}
-        flow={scene.flow}
+        {...run}
         ghost
         hot={scene.heaterOn}
       />
-      <PipeRun points={pumpToFilter} active={scene.poolOn} flow={scene.flow} />
-      <PipeRun points={filterToHeater} active={scene.poolOn} flow={scene.flow} />
-      <PipeRun points={heaterToCell} active={scene.poolOn} flow={scene.flow} hot={scene.heaterOn} />
-      <PipeRun points={returnPool} active={scene.poolOn} flow={scene.flow} hot={scene.heaterOn} />
+      <PipeRun points={pumpToFilter} {...run} />
+      <PipeRun points={filterToHeater} {...run} />
+      <PipeRun points={heaterToCell} {...run} hot={scene.heaterOn} />
+      <PipeRun points={returnPool} {...run} hot={scene.heaterOn} />
 
       {scene.chlorPct > 0 && scene.flow > 0 ? (
         <Sparkles
@@ -187,7 +191,7 @@ export function Pipes({ scene }: { scene: SceneState }) {
           size={1.5}
           color="#5eead4"
           scale={[0.5, 0.4, 1.6]}
-          position={[5.55, 0.35, 1.35]}
+          position={[PAD.cell[0], 0.35, PAD.cell[1]]}
         />
       ) : null}
     </group>

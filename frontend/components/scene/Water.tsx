@@ -1,13 +1,15 @@
 // Simulation-driven water styled after jeantimex/threejs-water: the surface
 // displaces by the GPU height field (see waterSim.ts), reflects a procedural
-// sky by fresnel, and composites over an opaque procedural-tile floor whose
-// shader wobbles the tiles by surface slope (fake refraction) and lights them
-// with a cheap caustic derived from the height-field's normal divergence.
-// The rounded-rect footprint is clipped by SDF in both fragment shaders.
+// sky by fresnel, and composites over an opaque floor whose shader draws the
+// speckled vinyl liner, wobbles it by surface slope (fake refraction), and
+// lights it with a cheap caustic derived from the height field's normal
+// divergence. Both fragment shaders clip to the pool footprint by SDF.
 import * as React from "react";
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 
+import { LINER_GLSL, POOL_SDF_GLSL } from "./glsl";
+import { FT, JET, SUN } from "./layout";
 import { useWaterSim, type Jet } from "./waterSim";
 
 const SURFACE_VERT = /* glsl */ `
@@ -45,22 +47,7 @@ uniform vec3 uLight;
 uniform vec2 uAlphaRange;
 varying vec2 vPos;
 varying vec3 vWorld;
-
-uniform vec2 uRR;    // rounded-rect half extents
-uniform vec2 uRROff; // rr center offset within the (wider) plane
-uniform vec2 uBayC;  // stair-bay rect center (local)
-uniform vec2 uBayH;  // stair-bay half extents; x<=0 disables
-float poolSDF(vec2 p) {
-  vec2 q = abs(p - uRROff) - (uRR - vec2(uRadius));
-  float d = length(max(q, vec2(0.0))) - uRadius;
-  if (uBayH.x > 0.0) {
-    vec2 b = abs(p - uBayC) - uBayH;
-    float db = length(max(b, vec2(0.0))) + min(max(b.x, b.y), 0.0);
-    d = min(d, db);
-  }
-  return d;
-}
-
+${POOL_SDF_GLSL}
 // Only ever seen AS A REFLECTION, so it reads as outdoor daylight over the
 // transparent-canvas dark card without any skybox mesh.
 vec3 skyColor(vec3 ray) {
@@ -87,11 +74,11 @@ void main() {
   vec3 refl = reflect(ray, normal);
   refl.y = abs(refl.y); // never sample "below horizon" — keeps reflections sky-like
 
-  // Schlick-style fresnel; F0 lower than the demo so the floor tiles stay
-  // visible through the middle from our high fixed camera.
+  // Schlick-style fresnel; F0 lower than the demo so the liner stays visible
+  // through the middle from our high fixed camera.
   float fres = mix(0.12, 1.0, pow(1.0 - max(dot(normal, -ray), 0.0), 3.0));
 
-  // Both ends are the 4' shallows, the middle is the 5' deep — mirror the
+  // Both ends are the shallows, the middle is the deep end — mirror the
   // floor's depth profile in the body color.
   float ends = pow(clamp(abs(vPos.x - uRROff.x) / uRR.x, 0.0, 1.0), 2.0);
   float edge = smoothstep(-0.45, 0.0, d);
@@ -109,9 +96,9 @@ void main() {
 }
 `;
 
-// The floor carries the pool's depth profile: 4' at both ends, 5' in the
-// middle (1.2/1.5 wu), blended parabolically along the long axis. The mesh
-// sits at water level and each vertex is pushed down by its local depth.
+// The floor carries the pool's depth profile (shallow at both ends, deep in
+// the middle) blended parabolically along the long axis. The mesh sits at
+// water level and each vertex is pushed down by its local depth.
 const FLOOR_VERT = /* glsl */ `
 uniform vec2 uRR;
 uniform vec2 uRROff;
@@ -136,31 +123,10 @@ uniform vec2 uDelta;
 uniform vec3 uLight;
 uniform float uDepthEnds;
 uniform float uDepthMid;
-uniform float uTileSize;
 varying vec2 vPos;
 varying float vDepth;
-
-uniform vec2 uRR;    // rounded-rect half extents
-uniform vec2 uRROff; // rr center offset within the (wider) plane
-uniform vec2 uBayC;  // stair-bay rect center (local)
-uniform vec2 uBayH;  // stair-bay half extents; x<=0 disables
-float poolSDF(vec2 p) {
-  vec2 q = abs(p - uRROff) - (uRR - vec2(uRadius));
-  float d = length(max(q, vec2(0.0))) - uRadius;
-  if (uBayH.x > 0.0) {
-    vec2 b = abs(p - uBayC) - uBayH;
-    float db = length(max(b, vec2(0.0))) + min(max(b.x, b.y), 0.0);
-    d = min(d, db);
-  }
-  return d;
-}
-
-float hash21(vec2 p) {
-  p = fract(p * vec2(234.34, 435.345));
-  p += dot(p, p + 34.23);
-  return fract(p.x * p.y);
-}
-
+${POOL_SDF_GLSL}
+${LINER_GLSL}
 void main() {
   float d = poolSDF(vPos);
   if (d > 0.0) discard;
@@ -180,13 +146,8 @@ void main() {
   float div = (nxE - infoC.b) + (nzN - infoC.a);
   float caustic = 0.68 + 2.2 * pow(clamp(0.5 + 6.0 * div, 0.0, 1.0), 3.0);
 
-  // Speckled vinyl liner (like the real pool) with fake refraction: offset the
-  // lookup by surface slope times depth.
-  vec2 tp = vPos + above.ba * (vDepth * 0.6);
-  float sp = hash21(floor(tp * 22.0));
-  float fleck = step(0.82, hash21(floor(tp * 22.0) + 7.3));
-  vec3 base = mix(vec3(0.62, 0.82, 0.90), vec3(0.42, 0.68, 0.82), 0.35 * sp);
-  base = mix(base, vec3(0.30, 0.55, 0.72), fleck * 0.6);
+  // Liner lookup offset by surface slope times depth — fake refraction.
+  vec3 base = linerColor(vPos + above.ba * (vDepth * 0.6));
 
   // Depth tint (deeper middle sits dimmer) + a wall-shadow band at the edge.
   float dn = (vDepth - uDepthEnds) / max(uDepthMid - uDepthEnds, 0.001);
@@ -198,28 +159,23 @@ void main() {
 }
 `;
 
-const LIGHT_DIR = new THREE.Vector3(6, 10, 4).normalize(); // matches the scene's directionalLight
+const LIGHT_DIR = new THREE.Vector3(...SUN).normalize();
+const SHALLOW = "#8fdcec";
+const DEEP = "#1f86b4";
 
-// 16x32 ft pool at ~2.54 ft per world unit. Sim texels stay ~square (~0.049wu).
 const POOL = {
   res: [256, 128] as [number, number],
   segments: [96, 64] as [number, number],
-  depthEnds: 1.58, // 4 ft
-  depthMid: 1.97, // 5 ft
+  depthEnds: 4 * FT,
+  depthMid: 5 * FT,
   alphaRange: [0.42, 0.9] as [number, number],
-  tileSize: 0.42,
   heightScale: 1.6,
-  // One pressurized return jet entering at the pool's FRONT-LEFT (sim UV
-  // v=0 is the front edge; the run from the cell is underground), firing
-  // STRAIGHT into the pool, perpendicular to the wall.
-  jets: [{ pos: [0.347, 0.05], dir: [0, 1] }] as Jet[],
   jetLen: [1.0, 1.8] as [number, number],
   jetK: 13,
   jetOmega: 7.5,
   jetAmp: 0.015,
   damping: [0.986, 0.997] as [number, number],
   dropRadius: [0.22, 0.18] as [number, number],
-  rateScale: 1,
 };
 
 export function Water({
@@ -228,26 +184,29 @@ export function Water({
   flow,
   position,
   bay,
-  shallow = "#8fdcec",
-  deep = "#1f86b4",
 }: {
   size: [number, number]; // the rounded-rect footprint
   radius: number; // corner radius; use half the size for a round surface
   flow: number;
   position: [number, number, number]; // rounded-rect center at the waterline
   bay?: [number, number]; // stair bay on the -x side: [depth out, width]
-  shallow?: string;
-  deep?: string;
 }) {
-  const v = POOL;
   const bayD = bay?.[0] ?? 0;
   // The plane widens westward to hold the bay's water; SDF unions the shapes.
   const plane: [number, number] = [size[0] + bayD, size[1]];
   const rrOff: [number, number] = [bayD / 2, 0];
   const bayC: [number, number] = [-size[0] / 2, 0];
   const bayH: [number, number] = bay ? [bay[0] / 2, bay[1] / 2] : [0, 0];
+  // The single pressurized return jet, converted from its world offset to sim
+  // UV (plane-local y maps to world -z), firing straight in off the front wall.
+  const jets: Jet[] = [
+    {
+      pos: [(JET[0] + rrOff[0]) / plane[0] + 0.5, -JET[1] / plane[1] + 0.5],
+      dir: [0, 1],
+    },
+  ];
   const { simRef, flowRef } = useWaterSim({
-    res: v.res,
+    ...POOL,
     worldSize: plane,
     rr: [size[0] / 2, size[1] / 2],
     rrOff,
@@ -255,15 +214,7 @@ export function Water({
     bayH,
     radius,
     flow,
-    heightScale: v.heightScale,
-    jets: v.jets,
-    jetLen: v.jetLen,
-    jetK: v.jetK,
-    jetOmega: v.jetOmega,
-    jetAmp: v.jetAmp,
-    damping: v.damping,
-    dropRadius: v.dropRadius,
-    rateScale: v.rateScale,
+    jets,
   });
 
   const surface = React.useRef<THREE.ShaderMaterial>(null);
@@ -275,31 +226,29 @@ export function Water({
       uRROff: { value: new THREE.Vector2(...rrOff) },
       uBayC: { value: new THREE.Vector2(...bayC) },
       uBayH: { value: new THREE.Vector2(...bayH) },
+      uRadius: { value: radius },
     };
     return {
       surface: {
         uSim: { value: null as THREE.Texture | null },
         uHalf: { value: half },
         ...sdf,
-        uRadius: { value: radius },
-        uHeightScale: { value: v.heightScale },
+        uHeightScale: { value: POOL.heightScale },
         uTime: { value: 0 },
         uFlow: { value: 0 },
-        uShallow: { value: new THREE.Color(shallow) },
-        uDeep: { value: new THREE.Color(deep) },
+        uShallow: { value: new THREE.Color(SHALLOW) },
+        uDeep: { value: new THREE.Color(DEEP) },
         uLight: { value: LIGHT_DIR },
-        uAlphaRange: { value: new THREE.Vector2(...v.alphaRange) },
+        uAlphaRange: { value: new THREE.Vector2(...POOL.alphaRange) },
       },
       floor: {
         uSim: { value: null as THREE.Texture | null },
         uHalf: { value: half },
         ...sdf,
-        uRadius: { value: radius },
-        uDelta: { value: new THREE.Vector2(1 / v.res[0], 1 / v.res[1]) },
+        uDelta: { value: new THREE.Vector2(1 / POOL.res[0], 1 / POOL.res[1]) },
         uLight: { value: LIGHT_DIR },
-        uDepthEnds: { value: v.depthEnds },
-        uDepthMid: { value: v.depthMid },
-        uTileSize: { value: v.tileSize },
+        uDepthEnds: { value: POOL.depthEnds },
+        uDepthMid: { value: POOL.depthMid },
       },
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- static per mount
@@ -329,7 +278,7 @@ export function Water({
         />
       </mesh>
       <mesh rotation={[-Math.PI / 2, 0, 0]}>
-        <planeGeometry args={[plane[0], plane[1], ...v.segments]} />
+        <planeGeometry args={[plane[0], plane[1], ...POOL.segments]} />
         <shaderMaterial
           ref={surface}
           uniforms={uniforms.surface}

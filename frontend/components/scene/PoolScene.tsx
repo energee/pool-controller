@@ -1,6 +1,6 @@
 // The scene graph for the pool system card, styled after a real backyard pool:
-// a 16x32 ft rounded-rect turquoise pool sunk into a light concrete deck with
-// white coping, and the equipment pad + plumbing beside it.
+// a 16x32 ft vinyl-lined pool sunk flush into a concrete deck, with a molded
+// stair bay at its west end and the equipment pad + plumbing beside it.
 // Pure presentation of a SceneState; drag/wheel orbits around the pool.
 import * as React from "react";
 import { Html, OrbitControls } from "@react-three/drei";
@@ -9,17 +9,21 @@ import * as THREE from "three";
 
 import type { SceneState } from "../../lib/scene";
 import { Equipment } from "./Equipment";
+import { LINER_GLSL } from "./glsl";
+import {
+  BAY,
+  BAY_X,
+  POOL_POS,
+  POOL_RADIUS,
+  POOL_SIZE,
+  SKIMMER,
+  SUN,
+  WALL_DEPTH,
+  WATER_Y,
+} from "./layout";
 import { Pipes } from "./Pipes";
 import { Water } from "./Water";
 
-// Pool footprint: a 16x32 ft (2:1) rounded rect at ~2.54 ft/wu, centred at
-// [-2.5, 0.2] — the pool nearly fills the deck, like the real enclosure.
-const POOL_POS: [number, number] = [-2.5, 0.2];
-const POOL_SIZE: [number, number] = [12.6, 6.3];
-const POOL_RADIUS = 1.2;
-// Stair bay jutting out of the pool's west end (like the real fiberglass
-// step alcove): [depth outward, width along the end].
-const BAY: [number, number] = [1.4, 3.4];
 const CAM_POS: [number, number, number] = [8.8, 7.6, 12.6];
 const CAM_TARGET: [number, number, number] = [-0.8, -1.15, 0.1];
 
@@ -111,11 +115,12 @@ function wallsGeometry(): THREE.ExtrudeGeometry {
       BAY[1] - 0.2,
     ]),
   );
-  return new THREE.ExtrudeGeometry(outer, { depth: 2.1, bevelEnabled: false });
+  return new THREE.ExtrudeGeometry(outer, { depth: WALL_DEPTH, bevelEnabled: false });
 }
 
-// The walls carry the same procedural tile liner as the floor: tiling plane
-// picked per-fragment by the dominant wall direction, darkening with depth.
+// The walls carry the same speckled liner as the floor (tiling plane picked
+// per-fragment by the dominant wall direction, darkening with depth), except
+// inside the stair bay, which is molded white fiberglass.
 const WALL_VERT = /* glsl */ `
 varying vec3 vPos;
 varying vec3 vNorm;
@@ -127,42 +132,50 @@ void main() {
 `;
 
 const WALL_FRAG = /* glsl */ `
+uniform float uBayEdgeX; // walls west of this are the stair bay's shell
+uniform float uDepth;    // wall height: z runs bottom (0) to waterline (uDepth)
 varying vec3 vPos;
 varying vec3 vNorm;
-float hash21(vec2 p) {
-  p = fract(p * vec2(234.34, 435.345));
-  p += dot(p, p + 34.23);
-  return fract(p.x * p.y);
-}
+${LINER_GLSL}
 void main() {
-  // Stair bay (west of the pool proper): white fiberglass shell, no liner.
-  // -6.1 = pool half-width 6.3 minus the wall inset margin.
-  if (vPos.x < -6.1) {
-    float dpt = clamp(1.0 - vPos.z / 2.1, 0.0, 1.0);
-    gl_FragColor = vec4(vec3(0.95, 0.94, 0.91) * mix(1.0, 0.82, dpt), 1.0);
+  float depth = clamp(1.0 - vPos.z / uDepth, 0.0, 1.0);
+  if (vPos.x < uBayEdgeX) {
+    // Stair bay: molded white fiberglass shell, no liner.
+    gl_FragColor = vec4(vec3(0.95, 0.94, 0.91) * mix(1.0, 0.82, depth), 1.0);
     return;
   }
-  // shape space: x/y are plan coords, z runs bottom (0) to waterline (2.1)
+  // shape space: x/y are plan coords, z runs bottom to the waterline
   vec2 tp = abs(vNorm.x) > abs(vNorm.y)
     ? vec2(vPos.y, vPos.z)
     : vec2(vPos.x, vPos.z);
-  // speckled vinyl liner, matching the floor
-  float sp = hash21(floor(tp * 22.0));
-  float fleck = step(0.82, hash21(floor(tp * 22.0) + 7.3));
-  vec3 base = mix(vec3(0.62, 0.82, 0.90), vec3(0.42, 0.68, 0.82), 0.35 * sp);
-  base = mix(base, vec3(0.30, 0.55, 0.72), fleck * 0.6);
+  vec3 base = linerColor(tp);
   // decorative border band at the waterline: navy with a light diamond motif
-  float band = smoothstep(1.78, 1.84, vPos.z);
+  float bandTop = uDepth - 0.26;
+  float band = smoothstep(bandTop - 0.06, bandTop, vPos.z);
   float dia = smoothstep(0.55, 0.35,
-    abs(fract(tp.x * 2.2) - 0.5) + abs(fract((vPos.z - 1.84) * 3.2) - 0.5));
+    abs(fract(tp.x * 2.2) - 0.5) + abs(fract((vPos.z - bandTop) * 3.2) - 0.5));
   vec3 border = mix(vec3(0.16, 0.35, 0.55), vec3(0.78, 0.88, 0.94), dia * 0.8);
   base = mix(base, border, band);
-  float depth = clamp(1.0 - vPos.z / 2.1, 0.0, 1.0);
   vec3 color = base * vec3(0.72, 0.92, 1.0);
   color *= mix(1.0, 0.62, depth);
   gl_FragColor = vec4(color, 1.0);
 }
 `;
+
+// Wall shader constants derived from the geometry, so a resize can't strand
+// the bay's white region or the depth gradient.
+const WALL_UNIFORMS = {
+  uBayEdgeX: { value: -POOL_SIZE[0] / 2 + 0.2 },
+  uDepth: { value: WALL_DEPTH },
+};
+
+// The stair unit: four treads descending east out of the bay, flanked by
+// sidewalls, with a back panel hiding the bay's liner. All positioned off
+// BAY_X so the unit follows the alcove if the pool is resized.
+const TREADS = 4;
+const TREAD_W = 0.45;
+const STAIR_TOP = -0.12; // top tread just under the waterline
+const STAIR_BOTTOM = -1.87; // treads/shell extend below the deepest step
 
 export function PoolScene({ scene }: { scene: SceneState }) {
   const deck = React.useMemo(deckGeometry, []);
@@ -174,11 +187,21 @@ export function PoolScene({ scene }: { scene: SceneState }) {
     ],
     [],
   );
+  // R3F only auto-disposes what it created; geometries and materials passed in
+  // as props are ours to release.
+  React.useEffect(
+    () => () => {
+      deck.dispose();
+      walls.dispose();
+      deckMats.forEach((m) => m.dispose());
+    },
+    [deck, walls, deckMats],
+  );
   return (
     <group position={[0, -0.6, 0]}>
       <CameraRig />
       <hemisphereLight args={["#cfe8f5", "#e8e0d0", 0.75]} />
-      <directionalLight position={[6, 10, 4]} intensity={1.5} color="#fff4e4" />
+      <directionalLight position={SUN} intensity={1.5} color="#fff4e4" />
 
       {/* concrete deck with the pool basin cut out */}
       <mesh
@@ -189,35 +212,55 @@ export function PoolScene({ scene }: { scene: SceneState }) {
       />
       {/* molded white stair unit filling the bay: four treads descending from
           the alcove back into the pool, flanked by fiberglass sidewalls */}
-      {[0, 1, 2, 3].map((i) => {
-        const top = -0.22 - 0.34 * i;
-        const h = top + 1.65;
+      {Array.from({ length: TREADS }, (_, i) => {
+        const top = STAIR_TOP - 0.34 * i;
+        const h = top - STAIR_BOTTOM;
         return (
-          <mesh key={i} position={[-9.775 + 0.45 * i, top - h / 2, POOL_POS[1]]}>
-            <boxGeometry args={[0.45, h, 3.0]} />
+          <mesh
+            key={i}
+            position={[
+              BAY_X + TREAD_W * (i + 0.5) + 0.2,
+              top - h / 2,
+              POOL_POS[1],
+            ]}
+          >
+            <boxGeometry args={[TREAD_W, h, BAY[1] - 0.4]} />
             <meshStandardMaterial color="#f4f3ee" roughness={0.8} />
           </mesh>
         );
       })}
       {[1, -1].map((side) => (
-        <mesh key={side} position={[-9.2, -0.83, POOL_POS[1] + side * 1.52]}>
-          <boxGeometry args={[1.64, 1.66, 0.12]} />
+        <mesh
+          key={side}
+          position={[
+            BAY_X + 1.0,
+            (STAIR_TOP + STAIR_BOTTOM) / 2,
+            POOL_POS[1] + side * (BAY[1] / 2 - 0.18),
+          ]}
+        >
+          <boxGeometry args={[1.64, STAIR_TOP - STAIR_BOTTOM, 0.12]} />
           <meshStandardMaterial color="#f4f3ee" roughness={0.8} />
         </mesh>
       ))}
       {/* white back panel — the fiberglass shell covers the bay's liner */}
-      <mesh position={[-9.99, -0.83, POOL_POS[1]]}>
-        <boxGeometry args={[0.14, 1.66, 3.16]} />
+      <mesh
+        position={[BAY_X + 0.21, (STAIR_TOP + STAIR_BOTTOM) / 2, POOL_POS[1]]}
+      >
+        <boxGeometry args={[0.14, STAIR_TOP - STAIR_BOTTOM, BAY[1] - 0.24]} />
         <meshStandardMaterial color="#f4f3ee" roughness={0.8} />
       </mesh>
 
-      {/* tile-linered basin walls from the waterline down to the floor */}
+      {/* vinyl-lined basin walls from the waterline down to the floor */}
       <mesh
         geometry={walls}
         rotation={[-Math.PI / 2, 0, 0]}
-        position={[POOL_POS[0], -2.1, POOL_POS[1]]}
+        position={[POOL_POS[0], -WALL_DEPTH, POOL_POS[1]]}
       >
-        <shaderMaterial vertexShader={WALL_VERT} fragmentShader={WALL_FRAG} />
+        <shaderMaterial
+          uniforms={WALL_UNIFORMS}
+          vertexShader={WALL_VERT}
+          fragmentShader={WALL_FRAG}
+        />
       </mesh>
 
       <Water
@@ -225,7 +268,7 @@ export function PoolScene({ scene }: { scene: SceneState }) {
         radius={POOL_RADIUS}
         bay={BAY}
         flow={scene.poolOn ? scene.flow : 0}
-        position={[POOL_POS[0], -0.1, POOL_POS[1]]}
+        position={[POOL_POS[0], WATER_Y, POOL_POS[1]]}
       />
 
       {/* equipment pad slab */}
@@ -235,17 +278,17 @@ export function PoolScene({ scene }: { scene: SceneState }) {
       </mesh>
 
       {/* skimmer mouth in the pool wall at the waterline, below the lid */}
-      <mesh position={[1.7, -0.12, POOL_POS[1] + POOL_SIZE[1] / 2 - 0.02]}>
+      <mesh position={[SKIMMER[0], -0.12, POOL_POS[1] + POOL_SIZE[1] / 2 - 0.02]}>
         <boxGeometry args={[0.5, 0.14, 0.08]} />
         <meshStandardMaterial color="#2e3a40" roughness={0.8} />
       </mesh>
       {/* skimmer lid on the deck at the pool's front-right — the suction line
           runs underground from here to the pump */}
-      <mesh position={[1.7, 0.02, 4.1]}>
+      <mesh position={[SKIMMER[0], 0.02, SKIMMER[1]]}>
         <cylinderGeometry args={[0.22, 0.22, 0.035, 20]} />
         <meshStandardMaterial color="#d8d0bc" roughness={0.9} />
       </mesh>
-      <mesh position={[1.7, 0.04, 4.1]}>
+      <mesh position={[SKIMMER[0], 0.04, SKIMMER[1]]}>
         <cylinderGeometry args={[0.15, 0.15, 0.01, 20]} />
         <meshStandardMaterial color="#c2b9a3" roughness={0.9} />
       </mesh>

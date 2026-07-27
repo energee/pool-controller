@@ -10,6 +10,8 @@ import * as React from "react";
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 
+import { POOL_SDF_GLSL } from "./glsl";
+
 const MAX_DROPS = 8;
 const MAX_JETS = 4;
 
@@ -76,11 +78,8 @@ uniform vec2 uDelta;
 uniform float uDamping;
 uniform vec2 uHalf;
 uniform float uRadius;
-uniform vec2 uRR;
-uniform vec2 uRROff;
-uniform vec2 uBayC;
-uniform vec2 uBayH;
 varying vec2 vUv;
+${POOL_SDF_GLSL}
 void main() {
   vec4 info = texture2D(uPrev, vUv);
   vec2 dx = vec2(uDelta.x, 0.0);
@@ -92,13 +91,7 @@ void main() {
   info.r += info.g;
   // Soft absorbing band at the actual pool wall (rounded rect + stair bay) —
   // clamp-to-edge alone would reflect off the invisible texture rectangle.
-  vec2 p = (vUv - 0.5) * 2.0 * uHalf;
-  vec2 q = abs(p - uRROff) - (uRR - vec2(uRadius));
-  float d = length(max(q, vec2(0.0))) - uRadius;
-  if (uBayH.x > 0.0) {
-    vec2 b = abs(p - uBayC) - uBayH;
-    d = min(d, length(max(b, vec2(0.0))) + min(max(b.x, b.y), 0.0));
-  }
+  float d = poolSDF((vUv - 0.5) * 2.0 * uHalf);
   float wall = smoothstep(-0.18, 0.0, d);
   info.rg *= 1.0 - 0.5 * wall;
   gl_FragColor = info;
@@ -146,7 +139,6 @@ export interface WaterSimConfig {
   jetAmp: number; // velocity forcing amplitude at flow 1
   damping: [number, number]; // per-step, lerped by flow — lower max = faster decay
   dropRadius: [number, number]; // ambient drops: base + random spread, world units
-  rateScale?: number;
 }
 
 export interface WaterSim {
@@ -172,7 +164,7 @@ function makeTarget(res: [number, number]): THREE.WebGLRenderTarget {
 export function useWaterSim(cfg: WaterSimConfig): WaterSim {
   const {
     res, worldSize, rr, rrOff, bayC, bayH, radius, heightScale, jets, jetLen,
-    jetK, jetOmega, jetAmp, damping, dropRadius, rateScale = 1,
+    jetK, jetOmega, jetAmp, damping, dropRadius,
   } = cfg;
   const simRef = React.useRef<THREE.Texture | null>(null);
   const flowRef = React.useRef(0);
@@ -181,6 +173,7 @@ export function useWaterSim(cfg: WaterSimConfig): WaterSim {
   const acc = React.useRef(0);
   const stepAcc = React.useRef(0);
   const phase = React.useRef(0);
+  const settleAge = React.useRef(0);
 
   const sim = React.useMemo(() => {
     const targets = [makeTarget(res), makeTarget(res)];
@@ -268,7 +261,7 @@ export function useWaterSim(cfg: WaterSimConfig): WaterSim {
 
     // Ambient drops only — the jets carry the flow now. A light sprinkle adds
     // texture while running; near-still water gets a rare ring.
-    const rate = (flow < 0.02 ? 0.15 : 0.6 + 2.5 * flow) * rateScale;
+    const rate = flow < 0.02 ? 0.15 : 0.6 + 2.5 * flow;
     acc.current += dt * rate;
     let count = 0;
     const drops = sim.drop.uniforms.uDrops.value as THREE.Vector4[];
@@ -292,6 +285,11 @@ export function useWaterSim(cfg: WaterSimConfig): WaterSim {
     // Forcing pass runs whenever there is anything to inject: queued drops or
     // live jets. Jet phase advances in real time (wrapped — sin is periodic).
     const jetsLive = flow > 0.02 && jets.length > 0;
+    // Nothing injected for a few seconds means the damped field has decayed to
+    // nothing, so the passes would just churn zeros — skip them. The surface's
+    // procedural idle swell keeps the water alive meanwhile.
+    settleAge.current = count > 0 || jetsLive ? 0 : settleAge.current + dt;
+    if (settleAge.current > 3) return;
     if (count > 0 || jetsLive) {
       phase.current = (phase.current + dt * jetOmega) % (2 * Math.PI);
       sim.drop.uniforms.uCount.value = count;

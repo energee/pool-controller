@@ -14,7 +14,6 @@ export interface SceneState {
   chlorPct: number;
   saltPpm: number | null;
   poolTemp: number | null;
-  spaTemp: number | null;
   stale: boolean;
 }
 
@@ -34,7 +33,6 @@ export function deriveSceneState(
       chlorPct: 0,
       saltPpm: null,
       poolTemp: null,
-      spaTemp: null,
       stale: true,
     };
   }
@@ -70,7 +68,6 @@ export function deriveSceneState(
     chlorPct: state.chlorinator?.output_percent ?? 0,
     saltPpm: state.chlorinator?.salt_ppm ?? null,
     poolTemp: state.status?.pool_temp ?? null,
-    spaTemp: state.status?.spa_temp ?? null,
     stale: !connected || (state.age != null && state.age > 60),
   };
 }

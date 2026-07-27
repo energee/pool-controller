@@ -26,17 +26,28 @@ export function PoolSceneCard({
   connected: boolean;
 }) {
   const [webgl] = React.useState(webglAvailable);
+  // The card sits in a long scrolling dashboard; don't render the scene (or
+  // step its simulation) while it is off screen.
+  const wrap = React.useRef<HTMLDivElement>(null);
+  const [onScreen, setOnScreen] = React.useState(true);
+  React.useEffect(() => {
+    const el = wrap.current;
+    if (!el) return;
+    const io = new IntersectionObserver(([e]) => setOnScreen(e.isIntersecting));
+    io.observe(el);
+    return () => io.disconnect();
+  }, []);
   if (!webgl) return null;
   const scene = deriveSceneState(state, connected);
   return (
     <DashCard title="System" className="col-span-full">
-      <div className="relative h-[380px]">
+      <div className="relative h-[380px]" ref={wrap}>
         {/* perspective camera for the photo-like view; CameraRig aims it */}
         <Canvas
           camera={{ fov: 34, near: 0.1, far: 100 }}
           dpr={[1, 2]}
           gl={{ antialias: true, alpha: true }}
-          frameloop={scene.stale ? "demand" : "always"}
+          frameloop={!onScreen ? "never" : scene.stale ? "demand" : "always"}
         >
           <PoolScene scene={scene} />
         </Canvas>
