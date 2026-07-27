@@ -306,6 +306,15 @@ Decoded fields per type (all surface in the HTTP API's JSON via `dataclasses.asd
   `spa_heat_mode`, `celsius`, `service`, `freeze`, plus `valve` (valve-actuator
   state), `delay` (0 = none, else the circuit currently in its valve delay), and
   `auto_dst` (panel auto-adjusts daylight saving time).
+
+  `heater_on` (status byte 22) is **not** "this body's heater is firing". Read
+  live off a real panel it sat true while the pool was 5°F *above* its set-point
+  with `pool_heat_mode: "Off"` and only the spa in `Heater` mode — it reflects
+  the heat subsystem, not per-body demand. To decide whether a body is actually
+  being heated, require all three: `heater_on`, that body's `*_heat_mode` not
+  `"Off"`, and its temp below its `*_setpoint`. The dashboard does this in
+  `isHeating()` (`frontend/lib/scene.ts`), which drives both the Equipment
+  card's "Heating"/"Filtering" verb and the 3D scene's hot pipe runs.
 - **`HeatStatus`** — `pool_temp`, `spa_temp`, `air_temp`, `pool_setpoint`,
   `spa_setpoint`, `pool_heat_mode`/`spa_heat_mode`, `heat_mode_raw`, plus
   `cool_setpoint` (chill set-point for heat-pump/UltraTemp; reads `100` when no
