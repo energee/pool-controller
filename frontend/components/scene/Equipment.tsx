@@ -69,9 +69,10 @@ export function Equipment({ scene }: { scene: SceneState }) {
     <group>
       {/* Pentair SuperFlo VS: almond strainer pot (clear lid, basket spinning
           when running) + volute, white PVC suction/discharge stubs, finned
-          motor, and the VS drive box whose LCD lights with flow. Suction
-          enters from the west (-x), the motor points east toward the pad. */}
-      <group position={[PAD.pump[0], 0, PAD.pump[1]]} rotation={[0, Math.PI / 2, 0]} {...hover("pump")}>
+          motor, and the VS drive box whose LCD lights with flow. Local -x (the
+          pot/suction end) faces the filter; the motor and VS drive face the
+          pool. Pipes.tsx meets the ports at world z 3.03 and 3.47. */}
+      <group position={[PAD.pump[0], 0, PAD.pump[1]]} rotation={[0, -Math.PI / 2, 0]} {...hover("pump")}>
         <mesh position={[0, 0.05, 0]}>
           <boxGeometry args={[0.88, 0.07, 0.34]} />
           <meshStandardMaterial color="#cfc7b2" roughness={0.85} />
@@ -271,8 +272,10 @@ export function Equipment({ scene }: { scene: SceneState }) {
 
       {/* Pentair IntelliChlor IC40: white ribbed inline cell with a tan label
           panel and black union nuts joining the pipe at both ends; the body
-          glows teal while generating. */}
-      <group position={[PAD.cell[0], 0, PAD.cell[1]]} rotation={[0, -Math.PI / 2, 0]} {...hover("chlorinator")}>
+          glows teal while generating. Unrotated, so the cell lies east-west
+          with its east union facing the heater — heat feeds straight in and
+          the west union drops to the buried return. */}
+      <group position={[PAD.cell[0], 0, PAD.cell[1]]} {...hover("chlorinator")}>
         <mesh position={[0, 0.22, 0]}>
           <boxGeometry args={[0.44, 0.2, 0.18]} />
           <meshStandardMaterial
