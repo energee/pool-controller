@@ -11,7 +11,7 @@ import { postJSON } from "../../lib/api";
 import { SETTLE_MS, saltBand } from "../../lib/constants";
 import type { Chlor } from "../../types";
 import { cn } from "../../lib/utils";
-import { DashCard, Muted, STAT_LABEL, Stepper } from "../primitives";
+import { DashCard, Muted, STAT_LABEL, STAT_VALUE, Stepper } from "../primitives";
 
 const STEP = 5; // output % per stepper tap
 
@@ -108,7 +108,7 @@ function ChlorForm({
     <DashCard title="Salt / Chlorinator">
       <div>
         <div className={STAT_LABEL}>Salt</div>
-        <div className="text-[22px] font-medium tracking-tight">
+        <div className={STAT_VALUE}>
           {chlor.salt_ppm?.toLocaleString() ?? "—"}
           <span className="text-muted-foreground text-sm font-normal"> ppm</span>
           {band ? (

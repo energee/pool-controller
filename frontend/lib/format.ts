@@ -30,21 +30,17 @@ export function clock12(
   iso: string | null | undefined,
   now: Date = new Date()
 ): string {
-  const m = /^(\d{4})-(\d{2})-(\d{2})[ T](\d{1,2}):(\d{2})/.exec(iso ?? "");
+  // The clock is one group so time12() owns the 12-hour rule for both callers.
+  const m = /^(\d{4})-(\d{2})-(\d{2})[ T](\d{1,2}:\d{2})/.exec(iso ?? "");
   if (!m) return time12(iso);
-  const [y, mo, d, h, min] = m.slice(1).map(Number) as [
-    number, number, number, number, number,
-  ];
-  const when = new Date(y, mo - 1, d, h, min);
-  const clock = (h % 12 || 12) + ":" + String(min).padStart(2, "0") +
-    (h < 12 ? " AM" : " PM");
-  const days = Math.round((midnight(when) - midnight(now)) / DAY_MS);
+  const midnightOf = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+  const days = Math.round((midnightOf.getTime() - midnight(now)) / DAY_MS);
   const day =
     days === 0 ? "Today"
     : days === -1 ? "Yesterday"
     : days === 1 ? "Tomorrow"
-    : when.toLocaleDateString(undefined, {
+    : midnightOf.toLocaleDateString(undefined, {
         weekday: "short", month: "short", day: "numeric",
       });
-  return day + " " + clock;
+  return day + " " + time12(m[4]);
 }

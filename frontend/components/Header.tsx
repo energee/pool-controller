@@ -43,12 +43,14 @@ export function Header({
       {/* min-w-0 + truncate: long error strings shorten instead of wrapping the
           pill onto two lines; tabular-nums keeps "12s" from jittering the width. */}
       <span className="inline-flex min-w-0 items-center gap-2 text-[13px] font-medium leading-none text-foreground/85 bg-accent rounded-full px-3 py-1.5">
+        {/* The halo reads its color from the same token as the dot, so retuning
+            --success/--destructive can't leave a mismatched ring behind. */}
         <span
           className={cn(
-            "w-[7px] h-[7px] shrink-0 rounded-full",
+            "w-[7px] h-[7px] shrink-0 rounded-full ring-[3px]",
             live
-              ? "bg-success shadow-[0_0_0_3px_rgba(76,195,138,0.16)]"
-              : "bg-destructive shadow-[0_0_0_3px_rgba(229,83,75,0.16)]"
+              ? "bg-success ring-success/15"
+              : "bg-destructive ring-destructive/15"
           )}
         />
         <span className="truncate whitespace-nowrap tabular-nums">{text}</span>
