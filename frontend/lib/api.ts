@@ -12,10 +12,15 @@ export async function getState(): Promise<State> {
   return (await r.json()) as State;
 }
 
+// ponytail: one shared toast id — a new verdict replaces the old one instead of
+// stacking a column of them when the user clicks several controls in a row.
+const VERDICT = "verdict";
+
 // Issue a command and surface the server's verdict as a toast:
-//   confirmed       -> verified applied (success)
+//   confirmed       -> verified applied (brief success)
 //   accepted (202)  -> sent, not confirmed by controller (warning)
-//   sent            -> best-effort, nothing to verify against (plain)
+//   sent            -> best-effort, nothing to verify; silent, the dashboard
+//                      state is the feedback
 //   !ok / throw     -> error
 export async function command(
   path: string,
@@ -29,14 +34,18 @@ export async function command(
     } catch {
       /* non-JSON / empty */
     }
-    if (!r.ok) toast.error(path + " failed: HTTP " + r.status);
-    else if (body.confirmed) toast.success("✓ confirmed applied");
+    if (!r.ok)
+      toast.error("Failed — HTTP " + r.status, { id: VERDICT, description: path });
+    else if (body.confirmed)
+      toast.success("Applied", { id: VERDICT, duration: 1500 });
     else if (r.status === 202 || body.accepted)
-      toast.warning("⚠ sent — not confirmed by controller");
-    else toast("sent (not verifiable)");
+      toast.warning("Sent — not confirmed by controller", { id: VERDICT });
     return body;
   } catch (e) {
-    toast.error(path + " failed: " + (e as Error).message);
+    toast.error("Failed — " + (e as Error).message, {
+      id: VERDICT,
+      description: path,
+    });
   }
 }
 

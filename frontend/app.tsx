@@ -12,7 +12,13 @@ if (root) {
   createRoot(root).render(
     <StrictMode>
       <Dashboard />
-      <Toaster theme="dark" position="bottom-center" richColors />
+      <Toaster
+        theme="dark"
+        position="bottom-center"
+        richColors
+        visibleToasts={1}
+        duration={3000}
+      />
     </StrictMode>
   );
 }
