@@ -138,8 +138,16 @@ void main() {
   // divergence of the stored normal.xz (≈ -laplacian of height) — bright under
   // crests (converging lens), dark under troughs. 3 extra taps, no extra pass.
   vec3 refr = refract(-uLight, vec3(0.0, 1.0, 0.0), 0.750);
-  // sim v maps to world -z (rotated plane), so the world-z shear flips sign
-  vec2 cuv = uv + vec2(refr.x, -refr.z) / refr.y * vDepth / (2.0 * uHalf);
+  // sim v maps to world -z (rotated plane), so the world-z shear flips sign.
+  // With SUN = [6,10,4] the shear runs ~0.7 wu east and ~0.5 wu south at full
+  // depth, so within that reach of the south/east walls the lookup lands
+  // OUTSIDE the pool, where the field is dead: div goes to 0 and the caustic
+  // pins to a flat 0.955. That read as a wide artificial band on exactly those
+  // two walls (measured: luminance std 9 there vs 26 on the north wall at the
+  // same distance) while north/west stayed clean. Fade the shear out as the
+  // wall approaches so the lookup always stays inside the water.
+  float inset = 1.0 - smoothstep(-0.9, -0.1, d);
+  vec2 cuv = uv + vec2(refr.x, -refr.z) / refr.y * vDepth * inset / (2.0 * uHalf);
   vec4 infoC = texture2D(uSim, cuv);
   float nxE = texture2D(uSim, cuv + vec2(uDelta.x, 0.0)).b;
   float nzN = texture2D(uSim, cuv + vec2(0.0, uDelta.y)).a;
