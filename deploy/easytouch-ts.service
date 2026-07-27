@@ -1,0 +1,38 @@
+# systemd unit for the easytouch pool dashboard, TypeScript stack.
+#
+# The alternative to easytouch.service (Python). Same job: owns the RS-485 serial
+# bus and serves the HTTP JSON API + dashboard on :8080. Runs the bundled
+# dist/easytouch.js on plain node — no Bun, no native serial module.
+#
+# NEVER enable this and easytouch.service at the same time. Only one process can
+# open the serial device, so the loser fails on start and, with Restart=on-failure,
+# retries forever. Disable one before enabling the other; see "Swapping the Pi to
+# the TypeScript stack" in README.md for the cutover and rollback steps.
+#
+#   sudo cp deploy/easytouch-ts.service /etc/systemd/system/
+#   sudo systemctl disable --now easytouch        # release the port first
+#   sudo systemctl enable --now easytouch-ts
+#
+# Adjust User=, the two /home/pi/pool paths, the node path, and --port to match
+# your Pi.
+[Unit]
+Description=easytouch pool dashboard, TypeScript stack (serial bus + HTTP API)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=pi
+# Grants serial-port access without editing the login user's groups.
+SupplementaryGroups=dialout
+WorkingDirectory=/home/pi/pool
+# USB RS-485 adapter. If the ttyUSB number ever drifts (multiple USB serial
+# devices), use the stable /dev/serial/by-id/usb-...  symlink instead.
+# WorkingDirectory matters: the server resolves the committed dashboard bundle
+# relative to the script, at <repo>/easytouch/static.
+ExecStart=/usr/bin/node /home/pi/pool/dist/easytouch.js --port /dev/ttyUSB0 serve --http-port 8080
+Restart=on-failure
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target

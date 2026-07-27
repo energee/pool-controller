@@ -85,7 +85,9 @@ Frontend work is the same loop plus a rebuild: edit `frontend/`, run
 
 Deploy the dashboard on a Pi wired straight to the RS-485 bus. Only Python
 ≥3.9 and `pyserial` are needed at runtime — the frontend is served from the
-committed `easytouch/static/` build, so **no Node/Bun on the Pi**.
+committed `easytouch/static/` build, so **this path needs no Node/Bun on the
+Pi**. (Running the TypeScript stack instead does need Node — see [Swapping the
+Pi to the TypeScript stack](#swapping-the-pi-to-the-typescript-stack).)
 
 ```bash
 # 1. Get the code and install (creates .venv with pyserial)
@@ -119,6 +121,76 @@ journalctl -u easytouch -f     # live logs
 ```
 
 Then open `http://<pi-ip>:8080/` from any device on the LAN.
+
+### Swapping the Pi to the TypeScript stack
+
+Two units ship in `deploy/`, one per stack. They are mutually exclusive:
+
+| Unit | Stack | Runs |
+| --- | --- | --- |
+| `easytouch.service` | Python (default) | `.venv/bin/python -m easytouch … serve` |
+| `easytouch-ts.service` | TypeScript | `/usr/bin/node dist/easytouch.js … serve` |
+
+**Only one may be enabled at a time.** Both open the same serial device, so the
+loser fails on start and — because both units set `Restart=on-failure` — retries
+forever. Always disable one before enabling the other.
+
+> The TypeScript device transport (`stty` + `node:fs`) has **not** been verified
+> against real hardware yet. Do the verification window below before cutting over,
+> and expect to roll back.
+
+```bash
+# 1. On your dev machine: build the server bundle and commit it, the same way
+#    easytouch/static/ is committed build output.
+bun build server/cli.ts --target node --outfile dist/easytouch.js
+git add dist/easytouch.js && git commit -m "Build: server bundle" && git push
+
+# 2. On the Pi: get the bundle and a Node runtime (>= 20).
+cd ~/pool && git pull
+sudo apt install -y nodejs && node --version    # or nodesource for a newer build
+
+# 3. Verification window — the pool is down for the length of this step.
+sudo systemctl stop easytouch                   # Python releases the serial port
+node dist/easytouch.js --port /dev/ttyUSB0 serve --http-port 8081
+```
+
+With that running, check against the live controller on `:8081`:
+
+- `curl -s localhost:8081/state` decodes status, clock, temps, pump, salt.
+- `curl -s localhost:8081/heat` populates — this is the one that proves
+  request/response works, not just passive broadcasts.
+- `curl -s localhost:8081/schedules` fills in after a full paced scan (~13 s).
+- One reversible write confirms: `curl -s localhost:8081/circuit/aux1/on`, then
+  `/circuit/aux1/off`.
+- `curl -sI localhost:8081/` and `.../static/app.js` both return 200 — the
+  dashboard is resolved relative to the script, so a bundled layout can serve the
+  API correctly while 404-ing its own JavaScript.
+
+```bash
+# 4. Ctrl-C the foreground server. Whatever happened, put the pool back on Python:
+sudo systemctl start easytouch
+
+# 5. Only if every check above passed, cut over:
+sudo cp deploy/easytouch-ts.service /etc/systemd/system/
+sudoedit /etc/systemd/system/easytouch-ts.service   # User=, paths, node path, --port
+sudo systemctl daemon-reload
+sudo systemctl disable --now easytouch              # release the port FIRST
+sudo systemctl enable --now easytouch-ts
+systemctl status easytouch-ts                       # should read: active (running)
+journalctl -u easytouch-ts -f                       # live logs
+```
+
+Rolling back, at any time — the Python unit stays installed and unmodified, so
+this is always available:
+
+```bash
+sudo systemctl disable --now easytouch-ts
+sudo systemctl enable --now easytouch
+```
+
+A dead or mis-detected transport shows up as `"connected": false` with an error
+string in `GET /state` within 30 s, rather than as a silent hang: the bus monitor
+treats 30 s of zero traffic as a dead link and forces a reconnect.
 
 ## CLI
 
@@ -449,9 +521,13 @@ second set of blocking request/confirm loops.
 
 The tests reuse the same captured frames as the Python suite, and both stacks are
 verified against `tools/mock_bus.py`; `GET /state` was compared key-for-key
-between the two servers. Still to come: a bundled `dist/server.js`, the systemd
-unit, and hardware verification — the device (`stty`) transport has no coverage
-until it runs against a real adapter.
+between the two servers.
+
+Still to come: the bundled `dist/easytouch.js` and hardware verification — the
+device (`stty`) transport has no coverage until it runs against a real adapter.
+The systemd unit (`deploy/easytouch-ts.service`) and the cutover/rollback
+procedure are written up under [Swapping the Pi to the TypeScript
+stack](#swapping-the-pi-to-the-typescript-stack).
 
 ## Safety
 

@@ -4,5 +4,10 @@ __pycache__/
 *.egg-info/
 .pytest_cache/
 build/
-dist/
+# dist/* rather than dist/: git cannot re-include a file whose parent directory
+# is excluded, and the server bundle below is committed build output (like
+# easytouch/static/) because the Pi deploys by `git pull`. See "Swapping the Pi
+# to the TypeScript stack" in README.md.
+dist/*
+!dist/easytouch.js
 node_modules/
