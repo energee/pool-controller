@@ -1,22 +1,22 @@
 # systemd unit for the easytouch pool dashboard, TypeScript stack.
 #
-# The alternative to easytouch.service (Python). Same job: owns the RS-485 serial
-# bus and serves the HTTP JSON API + dashboard on :8080. Runs the bundled
+# The alternative to easytouch.service (Python): same job, running the bundled
 # dist/easytouch.js on plain node — no Bun, no native serial module.
 #
-# NEVER enable this and easytouch.service at the same time. Only one process can
-# open the serial device, so the loser fails on start and, with Restart=on-failure,
-# retries forever. Disable one before enabling the other; see "Swapping the Pi to
-# the TypeScript stack" in README.md for the cutover and rollback steps.
+# Conflicts= makes systemd stop the other unit before starting this one. That
+# enforcement matters: nothing else prevents both from running. Neither stack
+# opens the serial device exclusively, so Linux happily gives both processes
+# /dev/ttyUSB0 and they split the incoming byte stream — a silent failure where
+# both decode garbage. (A shared --http-port would additionally crash whichever
+# starts second.) Conflicts= does NOT cover a manually-launched foreground
+# server, so stop the service before running one by hand.
 #
-#   sudo cp deploy/easytouch-ts.service /etc/systemd/system/
-#   sudo systemctl disable --now easytouch        # release the port first
-#   sudo systemctl enable --now easytouch-ts
-#
+# Install and cutover: see "Swapping the Pi to the TypeScript stack" in README.md.
 # Adjust User=, the two /home/pi/pool paths, the node path, and --port to match
 # your Pi.
 [Unit]
 Description=easytouch pool dashboard, TypeScript stack (serial bus + HTTP API)
+Conflicts=easytouch.service
 After=network-online.target
 Wants=network-online.target
 
@@ -28,8 +28,6 @@ SupplementaryGroups=dialout
 WorkingDirectory=/home/pi/pool
 # USB RS-485 adapter. If the ttyUSB number ever drifts (multiple USB serial
 # devices), use the stable /dev/serial/by-id/usb-...  symlink instead.
-# WorkingDirectory matters: the server resolves the committed dashboard bundle
-# relative to the script, at <repo>/easytouch/static.
 ExecStart=/usr/bin/node /home/pi/pool/dist/easytouch.js --port /dev/ttyUSB0 serve --http-port 8080
 Restart=on-failure
 RestartSec=3

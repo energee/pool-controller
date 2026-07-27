@@ -131,60 +131,81 @@ Two units ship in `deploy/`, one per stack. They are mutually exclusive:
 | `easytouch.service` | Python (default) | `.venv/bin/python -m easytouch … serve` |
 | `easytouch-ts.service` | TypeScript | `/usr/bin/node dist/easytouch.js … serve` |
 
-**Only one may be enabled at a time.** Both open the same serial device, so the
-loser fails on start and — because both units set `Restart=on-failure` — retries
-forever. Always disable one before enabling the other.
+**Only one may own the serial device.** Both units declare `Conflicts=` on each
+other, so systemd stops one before starting the other. That enforcement matters,
+because nothing else provides it: neither stack opens the port exclusively, so
+Linux will hand `/dev/ttyUSB0` to both processes and they will split the incoming
+byte stream — both decoding garbage, with no error anywhere. `Conflicts=` does
+not cover a server you launch by hand, so stop the service first when you do.
 
 > The TypeScript device transport (`stty` + `node:fs`) has **not** been verified
-> against real hardware yet. Do the verification window below before cutting over,
+> against real hardware yet. Work through the checks below before cutting over,
 > and expect to roll back.
 
+Everything except the serial transport itself can be checked with the pool still
+running, so do that first and keep the downtime window to the one thing that
+needs it.
+
 ```bash
-# 1. On your dev machine: build the server bundle and commit it, the same way
-#    easytouch/static/ is committed build output.
-bun build server/cli.ts --target node --outfile dist/easytouch.js
+# 1. Dev machine: build the bundle and smoke-test it against the mock bus.
+bun run build:server
+python tools/mock_bus.py --port 4000 &
+node dist/easytouch.js --port socket://127.0.0.1:4000 serve --http-port 8081
+```
+
+Against the mock on `:8081` — none of this needs the Pi or the real bus, and it
+covers every failure mode except the device transport:
+
+- `curl -sI localhost:8081/` and `.../static/app.js` both return 200. The bundle
+  resolves the dashboard relative to the script, so a bad layout serves the API
+  correctly while 404-ing its own JavaScript.
+- `curl -s localhost:8081/heat` populates — proves request/response, not just
+  passive broadcasts.
+- `curl -s localhost:8081/schedules` fills in after a paced scan (~13 s).
+- A write confirms: `curl -s localhost:8081/circuit/aux1/on`, then `/circuit/aux1/off`.
+
+```bash
+# 2. Ship it, and stage everything on the Pi that does not need the port.
 git add dist/easytouch.js && git commit -m "Build: server bundle" && git push
-
-# 2. On the Pi: get the bundle and a Node runtime (>= 20).
+#    On the Pi:
 cd ~/pool && git pull
-sudo apt install -y nodejs && node --version    # or nodesource for a newer build
+apt-cache policy nodejs        # Bookworm ships 18.x; use NodeSource if < 20
+node --version                 # must be >= 20
+sudo cp deploy/easytouch-ts.service /etc/systemd/system/
+sudoedit /etc/systemd/system/easytouch-ts.service   # User=, paths, node path, --port
+sudo systemctl daemon-reload   # installing a unit is inert until enabled
 
-# 3. Verification window — the pool is down for the length of this step.
-sudo systemctl stop easytouch                   # Python releases the serial port
+# 3. Downtime window — only the real serial transport is still unproven.
+curl -s localhost:8080/state > /tmp/py-state.json   # capture Python's view first
+sudo systemctl stop easytouch
 node dist/easytouch.js --port /dev/ttyUSB0 serve --http-port 8081
 ```
 
-With that running, check against the live controller on `:8081`:
-
-- `curl -s localhost:8081/state` decodes status, clock, temps, pump, salt.
-- `curl -s localhost:8081/heat` populates — this is the one that proves
-  request/response works, not just passive broadcasts.
-- `curl -s localhost:8081/schedules` fills in after a full paced scan (~13 s).
-- One reversible write confirms: `curl -s localhost:8081/circuit/aux1/on`, then
-  `/circuit/aux1/off`.
-- `curl -sI localhost:8081/` and `.../static/app.js` both return 200 — the
-  dashboard is resolved relative to the script, so a bundled layout can serve the
-  API correctly while 404-ing its own JavaScript.
+- `curl -s localhost:8081/state` decodes real values: clock, temps, pump, salt.
+- Diff it against the Python capture: `curl -s localhost:8081/state > /tmp/ts-state.json`
+  and compare the two with sorted keys. Live readings will differ; the shape and
+  key set should not.
 
 ```bash
-# 4. Ctrl-C the foreground server. Whatever happened, put the pool back on Python:
+# 4. Ctrl-C. If ANY check failed, restore Python and stop here:
 sudo systemctl start easytouch
 
-# 5. Only if every check above passed, cut over:
-sudo cp deploy/easytouch-ts.service /etc/systemd/system/
-sudoedit /etc/systemd/system/easytouch-ts.service   # User=, paths, node path, --port
-sudo systemctl daemon-reload
-sudo systemctl disable --now easytouch              # release the port FIRST
+# 5. Only if everything passed, cut over. Conflicts= stops Python for you:
+sudo systemctl disable easytouch
 sudo systemctl enable --now easytouch-ts
-systemctl status easytouch-ts                       # should read: active (running)
-journalctl -u easytouch-ts -f                       # live logs
+systemctl status easytouch-ts   # active (running)
+journalctl -u easytouch-ts -f   # live logs
 ```
+
+While iterating on a transport fix, `scp dist/easytouch.js pi:~/pool/dist/`
+instead of rebuilding and pushing a commit per attempt; commit the bundle once it
+works.
 
 Rolling back, at any time — the Python unit stays installed and unmodified, so
 this is always available:
 
 ```bash
-sudo systemctl disable --now easytouch-ts
+sudo systemctl disable easytouch-ts
 sudo systemctl enable --now easytouch
 ```
 

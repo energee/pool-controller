@@ -13,7 +13,7 @@ it built in TypeScript.
 
 Building it in TypeScript couples it to a deployment change: a TS tap only sees
 the bus if the TS stack owns the port on the Pi. Today `deploy/easytouch.service`
-runs Python, README:86-88 promises "**no Node/Bun on the Pi**", and PR #1 still
+ran Python, the README promised "**no Node/Bun on the Pi**", and PR #1 still
 carries "TS stack on real hardware — explicitly **not** claimed working yet".
 
 ## Two phases, landed separately
@@ -31,28 +31,25 @@ Phase 2 must not be started before Phase 1 is verified on the physical bus.
 
 ## What has to exist
 
-1. **A server bundle.** `package.json` has only a frontend build. Add:
-   `bun build server/cli.ts --target node --outfile dist/easytouch.js`.
-   `server/` has zero runtime dependencies, so this should bundle to one file
-   runnable by plain `node` — matching the port's stated intent (no Bun, no
-   node-gyp on the Pi).
+**Done already** (landed with the docs commit, verified locally):
 
-2. **Verify `STATIC_DIR` survives bundling.** `server/api.ts:46` computes
-   `resolve(dirname(fileURLToPath(import.meta.url)), "..", "easytouch", "static")`.
-   From `dist/easytouch.js` that resolves to `<repo>/easytouch/static`, which is
-   correct — but it is resolution-dependent and must be asserted, not assumed. If
-   the bundler rewrites `import.meta.url`, the dashboard serves 404s for its own
-   JS while the API still answers, which is a confusing failure. Add a smoke check
-   that `GET /` returns HTML and `GET /static/app.js` returns JavaScript from the
-   bundled artifact.
+1. ~~**A server bundle.**~~ `bun run build:server` →
+   `bun build server/cli.ts --target node --outfile dist/easytouch.js`. Produces a
+   48.9 KB single file from 9 modules; `server/` has zero runtime dependencies, so
+   it runs on plain `node` — no Bun, no node-gyp on the Pi.
+2. ~~**Verify `STATIC_DIR` survives bundling.**~~ It does. `import.meta.url` is
+   preserved by `bun build --target node`, so `server/api.ts:46` still resolves to
+   `<repo>/easytouch/static` from `dist/easytouch.js`. Confirmed by running the
+   bundled artifact on node v26 against the mock bus: `/` served HTML and
+   `/static/app.js` served JavaScript, alongside a decoded `/state`, a populated
+   `/heat`, and a confirmed circuit write.
+3. ~~**Node on the Pi.**~~ README's "no Node/Bun on the Pi" claim is now scoped to
+   the Python path. Node ≥ 20 required; Raspberry Pi OS Bookworm ships 18.x, so
+   NodeSource is needed.
+4. ~~**`deploy/easytouch-ts.service`.**~~ Exists, mirroring the Python unit. Both
+   units now declare `Conflicts=` on each other — see the hazard note below.
 
-3. **Node on the Pi.** Node ≥ 20. Update README's "no Node/Bun on the Pi" claim,
-   which becomes false for the TS deployment path.
-
-4. **`deploy/easytouch-ts.service`**, mirroring the existing unit: `User=pi`,
-   `SupplementaryGroups=dialout`, `Restart=on-failure`, `After=network-online.target`,
-   `ExecStart=/usr/bin/node /home/pi/pool/dist/easytouch.js --port /dev/ttyUSB0 serve --http-port 8080`.
-   The existing Python unit stays installed and unmodified as the rollback target.
+**Still to do:** nothing but the hardware verification itself.
 
 ## The risk that matters
 
@@ -71,30 +68,31 @@ Fallback if `createReadStream` misbehaves: replace it with an explicit
 `fs.read()` loop on a descriptor opened non-blocking, keeping the `Link`
 interface unchanged so nothing above the transport notices.
 
+## Both stacks can hold the port at once
+
+Worth stating because the obvious assumption is wrong: nothing prevents two
+processes from opening `/dev/ttyUSB0`. `easytouch/controller.py:84` calls
+`serial.Serial()` without `exclusive=`, `server/bus.ts` uses a bare
+`createReadStream`, and Linux does not enforce exclusivity on tty character
+devices. Two servers therefore both succeed and split the byte stream, each
+decoding garbage, with no error raised anywhere.
+
+Both units now declare `Conflicts=` on each other so systemd enforces the
+invariant. That does not cover a hand-launched foreground server, which is why
+the verification procedure stops the service first.
+
 ## Verification protocol (before any cutover)
 
-Only one process can hold the port, so this is a short scheduled window, not a
-side-by-side run:
+The runnable procedure lives in README, under "Swapping the Pi to the TypeScript
+stack", and is canonical — do not duplicate it here. Two constraints the spec
+owns:
 
-1. `sudo systemctl stop easytouch` — Python releases the port.
-2. `node dist/easytouch.js --port /dev/ttyUSB0 serve --http-port 8081` in the
-   foreground, on a *different* HTTP port so nothing else is disturbed.
-3. Confirm, against the real controller:
-   - `GET /state` decodes: status, clock, temps, pump, salt.
-   - `GET /heat` populates (proves request/response, not just broadcasts).
-   - Schedules populate across a full paced scan (~13s).
-   - One reversible write confirms — e.g. toggle an aux circuit on and back off.
-   - `GET /` and `GET /static/app.js` serve the dashboard (item 2 above).
-4. Compare `/state` key-for-key against the Python output captured before the
-   window. PR #1 already did this against the mock bus; this repeats it on hardware.
-5. `Ctrl-C`, then `sudo systemctl start easytouch`. The pool is back on Python
-   regardless of the outcome.
-
-Cutover only if step 3 and 4 pass:
-`sudo systemctl disable --now easytouch && sudo systemctl enable --now easytouch-ts`
-
-Rollback, at any later point:
-`sudo systemctl disable --now easytouch-ts && sudo systemctl enable --now easytouch`
+- Only the **device transport** genuinely needs the pool offline. Everything else
+  (static assets, `/heat` request/response, the paced schedule scan, a write
+  confirm) is satisfied by `tools/mock_bus.py` and belongs off-hardware, before
+  the window.
+- The `/state` key-for-key comparison needs Python's output captured *before*
+  the window, since Python is stopped for the duration.
 
 ## Phase 1 out of scope
 
@@ -241,8 +239,7 @@ Same commit as the code, per repo policy:
 - Module-level comment in `server/tap.ts`.
 - README: a "Develop against the real bus" section — the Pi command with
   `--tap-port`, the dev command with `socket://` and `--refresh-interval 0`, and
-  the unauthenticated-LAN caveat. Also correct the "no Node/Bun on the Pi" claim
-  (Phase 1).
+  the unauthenticated-LAN caveat.
 - `deploy/easytouch-ts.service`: commented example showing where `--tap-port` goes.
 - `HANDOFF.md`: the tap, its accepted ceiling, and the new deployment shape.
 

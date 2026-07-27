@@ -6,6 +6,8 @@
 # Adjust User=, the two /home/pi/pool paths, and --port to match your Pi.
 [Unit]
 Description=easytouch pool dashboard (serial bus + HTTP API)
+# Only one stack may own the serial device; see the note in easytouch-ts.service.
+Conflicts=easytouch-ts.service
 After=network-online.target
 Wants=network-online.target
 
