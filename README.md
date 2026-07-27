@@ -376,6 +376,17 @@ the committed build output is what the server ships, so **no Node/Bun is needed
 at runtime** — only after editing `frontend/` (run `bun run build`). It polls
 `GET /state` every ~3s (no manual refresh button — the header pill shows
 freshness). There is no separate summary strip: the controls are the readings.
+
+- A **live 3D system scene** (top card) renders a backyard-style 16x32 ft
+  pool (4' ends, 5' middle) with simulated water — a GPU height-field wave simulation (after
+  Evan Wallace's WebGL water) with refracted procedural pool tiles,
+  caustics, and sky reflection — plus the pump, filter, heater, and
+  chlorinator connected by pipes. Everything animates from the `/state`
+  poll: the return-jet wave train, ripple churn, and pipe-flow speed scale
+  with pump GPM/RPM, the heater and chlorinator glow when on, and hovering
+  equipment shows its live numbers. Drag/wheel orbits the scene. Stale or
+  disconnected data freezes and desaturates it.
+
 A freeze-protect / service-mode banner appears only when active; below it, one
 flat titled section per control surface (no card chrome — inner tiles and
 inputs carry their own affordances) — equipment (a full-width two-row band of

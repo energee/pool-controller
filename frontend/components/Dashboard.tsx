@@ -1,12 +1,12 @@
 // The dashboard root: drives the 3s poll via useDashboard and lays out a
 // freeze/service alert banner (only when active), then one card per control
-// surface — primary controls first (Equipment, Heat, Chlorinator, Schedules),
-// then system (Pumps & clock) and Lights. There is no separate summary strip:
-// the Equipment tiles and thermostat *are* the at-a-glance readings (temps,
-// what's running, heater state), so nothing is shown twice. The unverified
-// reverse-engineering surfaces (IntelliChem, Valves, Names — shown only when
-// their data exists — plus Raw frames) live behind a collapsed Diagnostics
-// disclosure so a pool owner sees ~5 cards, not 10.
+// surface — the live system scene first, then primary controls (Equipment,
+// Heat, Chlorinator, Schedules), system details (Pumps & clock), and Lights.
+// There is no separate summary strip: the Equipment tiles and thermostat *are*
+// the at-a-glance readings (temps, what's running, heater state), so nothing is
+// shown twice. The unverified reverse-engineering surfaces (IntelliChem, Valves,
+// Names — shown only when their data exists — plus Raw frames) live behind a
+// collapsed Diagnostics disclosure so a pool owner sees ~5 cards, not 10.
 import { useDashboard } from "../hooks/useDashboard";
 import { Header } from "./Header";
 import { Disclosure } from "./primitives";
@@ -20,6 +20,7 @@ import { PumpsCard } from "./cards/PumpsCard";
 import { RawCard } from "./cards/RawCard";
 import { SchedulesCard } from "./cards/SchedulesCard";
 import { ValvesCard } from "./cards/ValvesCard";
+import { PoolSceneCard } from "./scene/PoolSceneCard";
 
 const GRID = "grid gap-x-6 gap-y-5 grid-cols-[repeat(auto-fill,minmax(300px,1fr))]";
 
@@ -47,6 +48,7 @@ export function Dashboard() {
           </div>
         ) : null}
         <main className={GRID}>
+          <PoolSceneCard state={state} connected={connected} />
           <CircuitsCard status={s.status} refresh={refresh} />
           <HeatCard heat={s.heat} refresh={refresh} />
           <ChlorinatorCard chlor={s.chlorinator} refresh={refresh} />
