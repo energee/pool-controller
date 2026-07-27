@@ -259,10 +259,11 @@ export function useWaterSim(cfg: WaterSimConfig): WaterSim {
     const flow = (flowRef.current +=
       (flowProp.current - flowRef.current) * Math.min(dt * 2, 1));
 
-    // Ambient drops are a light garnish only — the phase-matched jet (see
-    // POOL.jetK/jetOmega in Water.tsx) carries the running pool's agitation.
-    // Driving the whole surface from here instead just makes it look like rain.
-    const rate = flow < 0.02 ? 0.15 : 0.6 + 2.5 * flow;
+    // Ambient drops are idle-only: a rare ring so still water isn't a dead
+    // freeze-frame. Once the pump runs, the phase-matched jet (POOL.jetK/
+    // jetOmega in Water.tsx) carries the surface on its own, and *any* sprinkle
+    // on top of it reads as rain falling in rather than water circulating.
+    const rate = flow < 0.02 ? 0.15 : 0;
     acc.current += dt * rate;
     let count = 0;
     const drops = sim.drop.uniforms.uDrops.value as THREE.Vector4[];
