@@ -120,7 +120,27 @@ systemctl status easytouch     # should read: active (running)
 journalctl -u easytouch -f     # live logs
 ```
 
-Then open `http://<pi-ip>:8080/` from any device on the LAN.
+Then open `http://<pi-ip>/` from any device on the LAN — no port needed.
+
+The unit serves on **port 80**. That is privileged and the service runs as `pi`,
+so it grants exactly one capability to bind it:
+
+```ini
+AmbientCapabilities=CAP_NET_BIND_SERVICE
+CapabilityBoundingSet=CAP_NET_BIND_SERVICE
+```
+
+systemd applies this to the process it spawns, which is why it works for the
+Python venv and for `node` alike — unlike `setcap`, which would have to go on the
+interpreter and would then grant low-port binding to *every* python or node
+process on the machine. Note that adding `NoNewPrivileges=` would silently
+disable it.
+
+Two things worth knowing. Check nothing already owns the port —
+`sudo ss -lptn 'sport = :80'` should come back empty; **Pi-hole's lighttpd is the
+common collision** on a Pi. And the CLI default stays `8080`, so local
+development needs no privileges; only the deployed unit asks for 80. To serve
+somewhere else, change `--http-port` in the unit and nothing else.
 
 ### Swapping the Pi to the TypeScript stack
 
@@ -176,7 +196,7 @@ sudoedit /etc/systemd/system/easytouch-ts.service   # User=, paths, node path, -
 sudo systemctl daemon-reload   # installing a unit is inert until enabled
 
 # 3. Downtime window — only the real serial transport is still unproven.
-curl -s localhost:8080/state > /tmp/py-state.json   # capture Python's view first
+curl -s localhost/state > /tmp/py-state.json        # capture Python's view first
 sudo systemctl stop easytouch
 node dist/easytouch.js --port /dev/ttyUSB0 serve --http-port 8081
 ```

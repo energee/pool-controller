@@ -16,10 +16,16 @@ Type=simple
 User=pi
 # Grants serial-port access without editing the login user's groups.
 SupplementaryGroups=dialout
+# Port 80 is privileged and this runs as pi, so systemd hands the process just
+# this one capability — the ability to bind a low port — and nothing else.
+# Preferred over `setcap` on the interpreter, which would grant it to every
+# python process on the box. (Adding NoNewPrivileges= would disable this.)
+AmbientCapabilities=CAP_NET_BIND_SERVICE
+CapabilityBoundingSet=CAP_NET_BIND_SERVICE
 WorkingDirectory=/home/pi/pool
 # USB RS-485 adapter. If the ttyUSB number ever drifts (multiple USB serial
 # devices), use the stable /dev/serial/by-id/usb-...  symlink instead.
-ExecStart=/home/pi/pool/.venv/bin/python -m easytouch --port /dev/ttyUSB0 serve --http-port 8080
+ExecStart=/home/pi/pool/.venv/bin/python -m easytouch --port /dev/ttyUSB0 serve --http-port 80
 Restart=on-failure
 RestartSec=3
 
