@@ -96,10 +96,12 @@ function PipeRun({
 // are routed Manhattan-style (axis-aligned segments, right-angle elbows) to
 // match the owner's schematic. Flow: pool -> pump -> filter -> heater ->
 // cell -> underground to the front-right jet.
+// The pump faces motor-to-pool, so its pot/suction port sits on the filter
+// side: the buried line runs past the pump and rises at z 2.75 to meet it.
 const suctionPool: Point[] = [
-  [6.3, -0.12, 4.25],
-  [6.3, 0.23, 4.25],
-  [6.3, 0.23, 3.99],
+  [6.3, -0.12, 2.75],
+  [6.3, 0.23, 2.75],
+  [6.3, 0.23, 3.01],
 ];
 
 // Underground (ghosted): front-RIGHT skimmer across to the pump riser.
@@ -107,16 +109,18 @@ const undergroundSuction: Point[] = [
   [1.7, -0.05, 4.1],
   [1.7, -0.45, 4.15],
   [1.7, -0.45, 4.3],
-  [6.3, -0.45, 4.25],
-  [6.3, -0.12, 4.25],
+  [6.75, -0.45, 4.25],
+  [6.75, -0.45, 2.75],
+  [6.3, -0.45, 2.75],
+  [6.3, -0.12, 2.75],
 ];
 
 // Underground (ghosted): from the cell's drop, around the pool's east end and
 // along the front of the deck to the jet inlet at the pool's FRONT-LEFT.
 const undergroundReturn: Point[] = [
-  [5.55, -0.12, 2.05],
-  [5.55, -0.45, 2.2],
-  [5.55, -0.45, 3.9],
+  [5.05, -0.12, 1.35],
+  [5.05, -0.45, 1.5],
+  [5.05, -0.45, 3.9],
   [-5.33, -0.45, 3.95],
   [-5.33, -0.45, 3.55],
   [-5.33, -0.2, 3.4],
@@ -124,43 +128,40 @@ const undergroundReturn: Point[] = [
 
 // Pump discharge: up, over, along, and down into the filter's upper union.
 const pumpToFilter: Point[] = [
-  [6.3, 0.52, 3.53],
-  [6.3, 0.66, 3.53],
-  [5.8, 0.66, 3.53],
+  [6.3, 0.52, 3.47],
+  [6.3, 0.66, 3.47],
+  [5.8, 0.66, 3.47],
   [5.8, 0.66, 2.4],
   [5.8, 0.32, 2.4],
   [6.06, 0.32, 2.4],
 ];
 
-// Filter's lower union wraps around the heater in a rectangle along the deck
-// edge and enters its pool face — the schematic's around-the-outside run.
+// Filter's lower union runs down the pad's east edge and enters the heater's
+// EAST face — the side its front panel already faces. Keeping this leg east of
+// the heater leaves the west lane (x ~5.85) free for the salt cell.
 const filterToHeater: Point[] = [
   [6.06, 0.18, 2.4],
   [5.85, 0.18, 2.4],
   [5.85, 0.1, 2.15],
   [6.85, 0.1, 2.15],
-  [6.85, 0.1, 0.7],
-  [5.8, 0.1, 0.7],
-  [5.8, 0.14, 1.15],
-  [6.0, 0.18, 1.15],
+  [6.85, 0.1, 1.32],
+  [6.62, 0.18, 1.32],
 ];
 
-// Out of the heater's pool face, square around behind the cell and into its
-// BACK union (heat enters the far side of the cell).
+// Straight out of the heater's west face into the cell's EAST union — the two
+// sit inline, so this is a coupling, not a run. It starts inside the heater
+// body so the tube reads as emerging from it rather than floating.
 const heaterToCell: Point[] = [
-  [6.0, 0.18, 1.6],
-  [5.9, 0.18, 1.6],
-  [5.9, 0.12, 0.75],
-  [5.55, 0.12, 0.75],
-  [5.55, 0.22, 0.97],
+  [6.12, 0.22, 1.35],
+  [5.91, 0.22, 1.35],
 ];
 
-// Out of the cell's FRONT union toward the filter, then down underground
+// Out of the cell's WEST union and straight down off the pad's edge
 // (continues as the ghosted return run to the front-left jet).
 const returnPool: Point[] = [
-  [5.55, 0.22, 1.73],
-  [5.55, 0.22, 2.05],
-  [5.55, -0.12, 2.05],
+  [5.19, 0.22, 1.35],
+  [5.05, 0.22, 1.35],
+  [5.05, -0.12, 1.35],
 ];
 
 export function Pipes({ scene }: { scene: SceneState }) {

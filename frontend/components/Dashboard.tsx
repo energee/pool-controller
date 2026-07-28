@@ -49,7 +49,7 @@ export function Dashboard() {
         ) : null}
         <main className={GRID}>
           <PoolSceneCard state={state} connected={connected} />
-          <CircuitsCard status={s.status} refresh={refresh} />
+          <CircuitsCard status={s.status} heat={s.heat} refresh={refresh} />
           <HeatCard heat={s.heat} refresh={refresh} />
           <ChlorinatorCard chlor={s.chlorinator} refresh={refresh} />
           <SchedulesCard schedules={s.schedules} refresh={refresh} />

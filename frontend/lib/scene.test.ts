@@ -66,6 +66,93 @@ describe("deriveSceneState", () => {
   });
 });
 
+// The controller's `heater_on` bit is not "this body's heater is firing": read
+// live off a real EasyTouch, it sat true while the pool was 5F ABOVE set-point
+// with pool_heat_mode "Off" and only the SPA in Heater mode. Driving the scene's
+// hot pipes straight off it showed the pool being heated when nothing was.
+describe("heaterOn tracks real heat demand, not the raw bit", () => {
+  const heating: State = {
+    age: 2,
+    status: {
+      circuits_on: [6],
+      pool_temp: 70,
+      spa_temp: 70,
+      heater_on: true,
+      pool_heat_mode: "Heater",
+      spa_heat_mode: "Off",
+    },
+    heat: { pool_setpoint: 80, spa_setpoint: 100 },
+  };
+
+  test("pool below set-point in Heater mode is calling for heat", () => {
+    expect(deriveSceneState(heating, true).heaterOn).toBe(true);
+  });
+
+  test("pool at or above set-point is not calling for heat", () => {
+    const at = { ...heating, status: { ...heating.status, pool_temp: 80 } };
+    const above = { ...heating, status: { ...heating.status, pool_temp: 84 } };
+    expect(deriveSceneState(at, true).heaterOn).toBe(false);
+    expect(deriveSceneState(above, true).heaterOn).toBe(false);
+  });
+
+  // The live reading that prompted this.
+  test("pool heat mode Off never heats, even with the raw bit set", () => {
+    const live: State = {
+      age: 2,
+      status: {
+        circuits_on: [6],
+        pool_temp: 80,
+        spa_temp: 80,
+        heater_on: true,
+        pool_heat_mode: "Off",
+        spa_heat_mode: "Heater",
+      },
+      heat: { pool_setpoint: 75, spa_setpoint: 70 },
+    };
+    expect(deriveSceneState(live, true).heaterOn).toBe(false);
+  });
+
+  test("the raw bit clear means no heat regardless of set-points", () => {
+    const cold = { ...heating, status: { ...heating.status, heater_on: false } };
+    expect(deriveSceneState(cold, true).heaterOn).toBe(false);
+  });
+
+  test("spa running reads the spa's mode and set-point, not the pool's", () => {
+    const spa: State = {
+      age: 2,
+      status: {
+        circuits_on: [1],
+        pool_temp: 70,
+        spa_temp: 95,
+        heater_on: true,
+        pool_heat_mode: "Heater", // pool would call for heat; spa is the live body
+        spa_heat_mode: "Heater",
+      },
+      heat: { pool_setpoint: 80, spa_setpoint: 100 },
+    };
+    expect(deriveSceneState(spa, true).heaterOn).toBe(true);
+    const satisfied = { ...spa, status: { ...spa.status, spa_temp: 101 } };
+    expect(deriveSceneState(satisfied, true).heaterOn).toBe(false);
+  });
+
+  test("no body running means nothing is being heated", () => {
+    const off = { ...heating, status: { ...heating.status, circuits_on: [] } };
+    expect(deriveSceneState(off, true).heaterOn).toBe(false);
+  });
+
+  // Set-points arrive in a separate frame than the status bit; until they do,
+  // fall back to the mode gate rather than flapping the viz on a missing field.
+  test("missing set-point falls back to the mode gate", () => {
+    const noHeat = { ...heating, heat: null };
+    expect(deriveSceneState(noHeat, true).heaterOn).toBe(true);
+    const modeOff = {
+      ...noHeat,
+      status: { ...heating.status, pool_heat_mode: "Off" },
+    };
+    expect(deriveSceneState(modeOff, true).heaterOn).toBe(false);
+  });
+});
+
 // Real pumps sometimes report gpm 0 while running in RPM mode (the mock bus
 // does too) — a zero GPM must fall back to RPM instead of reading as no flow.
 test("zero gpm with live rpm falls back to rpm", () => {

@@ -92,7 +92,13 @@ void main() {
   // Soft absorbing band at the actual pool wall (rounded rect + stair bay) —
   // clamp-to-edge alone would reflect off the invisible texture rectangle.
   float d = poolSDF((vUv - 0.5) * 2.0 * uHalf);
-  float wall = smoothstep(-0.18, 0.0, d);
+  // Keep this band THIN. The multiply runs every step (120/s), so even a small
+  // factor annihilates the field within a second -- the band's width is the
+  // width of visibly dead water at the wall. At the original 0.18 wu it read as
+  // a flat artificial strip all the way round (measured: luminance std ~9 in
+  // 0.15-0.30 wu vs ~17-25 further in). 0.08 wu is ~1.5 texels, still enough to
+  // swallow the outbound wave instead of ringing it off the texture rectangle.
+  float wall = smoothstep(-0.08, 0.0, d);
   info.rg *= 1.0 - 0.5 * wall;
   gl_FragColor = info;
 }
@@ -259,9 +265,11 @@ export function useWaterSim(cfg: WaterSimConfig): WaterSim {
     const flow = (flowRef.current +=
       (flowProp.current - flowRef.current) * Math.min(dt * 2, 1));
 
-    // Ambient drops only — the jets carry the flow now. A light sprinkle adds
-    // texture while running; near-still water gets a rare ring.
-    const rate = flow < 0.02 ? 0.15 : 0.6 + 2.5 * flow;
+    // Ambient drops are idle-only: a rare ring so still water isn't a dead
+    // freeze-frame. Once the pump runs, the phase-matched jet (POOL.jetK/
+    // jetOmega in Water.tsx) carries the surface on its own, and *any* sprinkle
+    // on top of it reads as rain falling in rather than water circulating.
+    const rate = flow < 0.02 ? 0.15 : 0;
     acc.current += dt * rate;
     let count = 0;
     const drops = sim.drop.uniforms.uDrops.value as THREE.Vector4[];

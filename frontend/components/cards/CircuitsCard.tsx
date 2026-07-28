@@ -1,7 +1,9 @@
 // Equipment card: every circuit is a tap-anywhere tile (the tile *is* the
 // switch — state shown as a color + verb, amber pulse while the bus confirms).
 // Pool and Spa lead with their temps; the aux/feature circuits are the same
-// tile, just with nothing extra to say. A heating pool shows its verb in red.
+// tile, just with nothing extra to say. A pool that is actually calling for
+// heat (see isHeating — the raw heater_on bit alone is not enough) shows its
+// verb in red; a pool merely circulating reads "Filtering".
 // Toggling calls GET /circuit/<n>/<on|off>; command() blocks until the server
 // confirms (or 202s), which is exactly the window the pending style covers. A
 // 202 -- sent, never confirmed by the controller -- holds the tile amber and
@@ -11,7 +13,8 @@ import * as React from "react";
 import { command } from "../../lib/api";
 import { CIRCUITS, CIRCUIT_NUMBERS } from "../../lib/constants";
 import { temp as fmtTemp } from "../../lib/format";
-import type { Status } from "../../types";
+import { isHeating } from "../../lib/scene";
+import type { Heat, Status } from "../../types";
 import { cn } from "../../lib/utils";
 import { DashCard } from "../primitives";
 
@@ -20,9 +23,12 @@ const POOL = CIRCUIT_NUMBERS.pool;
 
 export function CircuitsCard({
   status,
+  heat,
   refresh,
 }: {
   status?: Status | null;
+  /** Set-points, needed to tell "heater enabled" from "actually heating". */
+  heat?: Heat | null;
   refresh: () => Promise<void>;
 }) {
   const on = (status && status.circuits_on) || [];
@@ -60,6 +66,9 @@ export function CircuitsCard({
   };
 
   const unit = status?.unit || "F";
+  // "Heating" means the burner is actually called for — not just that the
+  // controller's heater bit is set (it also reads true for the spa's mode).
+  const poolHeating = isHeating(status, heat, "pool");
   // Full-width band: two rows flowing column-by-column (Pool over Spa first),
   // so the tall tile stack no longer sets the page grid's first-row height.
   // Phones keep the old two-column stack — ten tiles across two rows would be
@@ -72,8 +81,8 @@ export function CircuitsCard({
           temp={status?.pool_temp}
           unit={unit}
           on={on.includes(POOL)}
-          verb={on.includes(POOL) ? (status?.heater_on ? "Heating" : "Filtering") : "Off"}
-          hot={Boolean(on.includes(POOL) && status?.heater_on)}
+          verb={on.includes(POOL) ? (poolHeating ? "Heating" : "Filtering") : "Off"}
+          hot={Boolean(on.includes(POOL) && poolHeating)}
           pending={pending === POOL}
           unconfirmed={stuck === POOL}
           onToggle={() => toggle(POOL)}

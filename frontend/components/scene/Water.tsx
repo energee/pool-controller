@@ -9,7 +9,7 @@ import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 
 import { LINER_GLSL, POOL_SDF_GLSL } from "./glsl";
-import { FT, JET, SUN } from "./layout";
+import { FT, JET, SUN, waterPlane } from "./layout";
 import { useWaterSim, type Jet } from "./waterSim";
 
 const SURFACE_VERT = /* glsl */ `
@@ -138,8 +138,16 @@ void main() {
   // divergence of the stored normal.xz (≈ -laplacian of height) — bright under
   // crests (converging lens), dark under troughs. 3 extra taps, no extra pass.
   vec3 refr = refract(-uLight, vec3(0.0, 1.0, 0.0), 0.750);
-  // sim v maps to world -z (rotated plane), so the world-z shear flips sign
-  vec2 cuv = uv + vec2(refr.x, -refr.z) / refr.y * vDepth / (2.0 * uHalf);
+  // sim v maps to world -z (rotated plane), so the world-z shear flips sign.
+  // With SUN = [6,10,4] the shear runs ~0.7 wu east and ~0.5 wu south at full
+  // depth, so within that reach of the south/east walls the lookup lands
+  // OUTSIDE the pool, where the field is dead: div goes to 0 and the caustic
+  // pins to a flat 0.955. That read as a wide artificial band on exactly those
+  // two walls (measured: luminance std 9 there vs 26 on the north wall at the
+  // same distance) while north/west stayed clean. Fade the shear out as the
+  // wall approaches so the lookup always stays inside the water.
+  float inset = 1.0 - smoothstep(-0.9, -0.1, d);
+  vec2 cuv = uv + vec2(refr.x, -refr.z) / refr.y * vDepth * inset / (2.0 * uHalf);
   vec4 infoC = texture2D(uSim, cuv);
   float nxE = texture2D(uSim, cuv + vec2(uDelta.x, 0.0)).b;
   float nzN = texture2D(uSim, cuv + vec2(0.0, uDelta.y)).a;
@@ -171,9 +179,17 @@ const POOL = {
   alphaRange: [0.42, 0.9] as [number, number],
   heightScale: 1.6,
   jetLen: [1.0, 1.8] as [number, number],
-  jetK: 13,
-  jetOmega: 7.5,
-  jetAmp: 0.015,
+  // Phase-matched to the sim's own wave speed: the update's `v += (avg-h)*2`
+  // gives c = dx/(sqrt(2)*dt) = (14/256)*120/sqrt(2) ~= 4.6 wu/s, so the source
+  // must travel at omega/k ~= 4.6 or it just pumps a near-standing pattern that
+  // cancels its own radiation. k = 3.9 puts the wavelength at 2pi/3.9 ~= 1.6 wu
+  // (~29 texels) — long enough to survive numerical damping and to read as
+  // swell rather than speckle at this camera distance.
+  jetK: 3.9,
+  jetOmega: 18,
+  // Phase-matching made the source resonant, so the same forcing that used to
+  // barely ripple now builds surf — amplitude drops by roughly that same factor.
+  jetAmp: 0.007,
   damping: [0.986, 0.997] as [number, number],
   dropRadius: [0.22, 0.18] as [number, number],
 };
@@ -191,10 +207,9 @@ export function Water({
   position: [number, number, number]; // rounded-rect center at the waterline
   bay?: [number, number]; // stair bay on the -x side: [depth out, width]
 }) {
-  const bayD = bay?.[0] ?? 0;
   // The plane widens westward to hold the bay's water; SDF unions the shapes.
-  const plane: [number, number] = [size[0] + bayD, size[1]];
-  const rrOff: [number, number] = [bayD / 2, 0];
+  const { plane, offset } = waterPlane(size, bay);
+  const rrOff: [number, number] = [offset, 0];
   const bayC: [number, number] = [-size[0] / 2, 0];
   const bayH: [number, number] = bay ? [bay[0] / 2, bay[1] / 2] : [0, 0];
   // The single pressurized return jet, converted from its world offset to sim
@@ -267,9 +282,15 @@ export function Water({
   });
 
   return (
+    // `position` places the *rounded rect's* center, but the SDF, the sim, and
+    // the jet UV all work in the widened plane's frame, whose origin sits rrOff
+    // (bayD/2) west of that center. Both planes therefore carry the same -rrOff
+    // shift and the same plane[] extent, or they clip the bay off the west end:
+    // a plane laid out on the rr center alone stops half a bay short of the
+    // stairs, and one sized to size[] never covers the bay at all.
     <group position={position}>
-      <mesh rotation={[-Math.PI / 2, 0, 0]}>
-        <planeGeometry args={[size[0], size[1], 48, 1]} />
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[-rrOff[0], 0, 0]}>
+        <planeGeometry args={[plane[0], plane[1], 48, 1]} />
         <shaderMaterial
           ref={floor}
           uniforms={uniforms.floor}
@@ -277,7 +298,7 @@ export function Water({
           fragmentShader={FLOOR_FRAG}
         />
       </mesh>
-      <mesh rotation={[-Math.PI / 2, 0, 0]}>
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[-rrOff[0], 0, 0]}>
         <planeGeometry args={[plane[0], plane[1], ...POOL.segments]} />
         <shaderMaterial
           ref={surface}

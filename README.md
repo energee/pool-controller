@@ -81,6 +81,28 @@ Frontend work is the same loop plus a rebuild: edit `frontend/`, run
 `bun run build`, reload the page (the server ships the committed
 `easytouch/static/` bundle, so nothing is served from `frontend/` directly).
 
+### Frontend work against a live controller (dev proxy)
+
+If an easytouch server is already running on the LAN, it owns the RS-485
+adapter — you cannot also export that device with `socat`, and you don't need
+to. `tools/dev-proxy.ts` serves your **local** build over that server's **live**
+data: `/` and `/static/*` come from `easytouch/static/`, everything else
+(`/state`, and every command endpoint) is forwarded upstream.
+
+```bash
+bun run build
+bun tools/dev-proxy.ts --upstream http://pool.local --port 8091
+# then open http://localhost:8091/ — local UI, real pool
+```
+
+`--upstream` defaults to `http://pool.local` and also reads `EASYTOUCH_UPSTREAM`.
+No CORS is involved: the browser only talks to the proxy, and
+`frontend/lib/api.ts` uses same-origin relative fetches. `--check` runs the path
+routing self-test and exits.
+
+> **Commands hit the real pool.** Unlike the mock bus, a click in this dashboard
+> actually switches circuits and set-points.
+
 ## Run on a Raspberry Pi (systemd)
 
 Deploy the dashboard on a Pi wired straight to the RS-485 bus. Only Python
@@ -326,6 +348,15 @@ Decoded fields per type (all surface in the HTTP API's JSON via `dataclasses.asd
   `spa_heat_mode`, `celsius`, `service`, `freeze`, plus `valve` (valve-actuator
   state), `delay` (0 = none, else the circuit currently in its valve delay), and
   `auto_dst` (panel auto-adjusts daylight saving time).
+
+  `heater_on` (status byte 22) is **not** "this body's heater is firing". Read
+  live off a real panel it sat true while the pool was 5°F *above* its set-point
+  with `pool_heat_mode: "Off"` and only the spa in `Heater` mode — it reflects
+  the heat subsystem, not per-body demand. To decide whether a body is actually
+  being heated, require all three: `heater_on`, that body's `*_heat_mode` not
+  `"Off"`, and its temp below its `*_setpoint`. The dashboard does this in
+  `isHeating()` (`frontend/lib/scene.ts`), which drives both the Equipment
+  card's "Heating"/"Filtering" verb and the 3D scene's hot pipe runs.
 - **`HeatStatus`** — `pool_temp`, `spa_temp`, `air_temp`, `pool_setpoint`,
   `spa_setpoint`, `pool_heat_mode`/`spa_heat_mode`, `heat_mode_raw`, plus
   `cool_setpoint` (chill set-point for heat-pump/UltraTemp; reads `100` when no
