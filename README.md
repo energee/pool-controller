@@ -1,5 +1,8 @@
 # easytouch
 
+<img width="1408" height="902" alt="Screenshot 2026-07-27 at 10 48 46 PM" src="https://github.com/user-attachments/assets/e3a747bf-a815-4b25-ab25-44e49af050b9" />
+
+
 A lightweight Python toolkit to **monitor and control a Pentair EasyTouch /
 IntelliTouch pool controller over its RS-485 bus.**
 
